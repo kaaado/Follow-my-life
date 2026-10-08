@@ -135,6 +135,8 @@ class Transactions extends Table {
         Index('idx_txn_date', 'CREATE INDEX idx_txn_date ON transactions (date)'),
         Index('idx_txn_source', 'CREATE INDEX idx_txn_source ON transactions (source_id)'),
         Index('idx_txn_category', 'CREATE INDEX idx_txn_category ON transactions (category_id)'),
+        Index('idx_txn_date_type', 'CREATE INDEX idx_txn_date_type ON transactions (date, type)'),
+        Index('idx_txn_date_status', 'CREATE INDEX idx_txn_date_status ON transactions (date, status)'),
       ];
 }
 
@@ -234,6 +236,7 @@ class RecurringTransactions extends Table {
   List<Index> get indexes => [
         Index('idx_rec_next', 'CREATE INDEX idx_rec_next ON recurring_transactions (next_occurrence)'),
         Index('idx_rec_source', 'CREATE INDEX idx_rec_source ON recurring_transactions (source_id)'),
+        Index('idx_rec_active_auto_next', 'CREATE INDEX idx_rec_active_auto_next ON recurring_transactions (is_active, auto_execute, next_occurrence)'),
       ];
 }
 
@@ -250,6 +253,10 @@ class RecurringOccurrences extends Table {
 
   @override
   Set<Column> get primaryKey => {id};
+
+  List<Index> get indexes => [
+        Index('idx_rec_occ_unique', 'CREATE UNIQUE INDEX idx_rec_occ_unique ON recurring_occurrences (recurring_id, scheduled_date)'),
+      ];
 }
 
 /// Financial allocations (money reserved for a purpose).
@@ -315,12 +322,16 @@ class Debts extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// Split transaction items breakdown.
+/// Split transaction items breakdown supporting multi-source and multi-currency allocations.
 class SplitTransactions extends Table {
   TextColumn get id => text()();
   TextColumn get transactionId => text().references(Transactions, #id)();
-  TextColumn get categoryId => text().references(Categories, #id)();
+  TextColumn get categoryId => text().nullable().references(Categories, #id)();
+  TextColumn get sourceId => text().nullable().references(MoneySources, #id)();
   IntColumn get amountMinor => integer()();
+  TextColumn get currency => text().withDefault(const Constant('DZD'))();
+  RealColumn get exchangeRate => real().withDefault(const Constant(1.0))();
+  IntColumn get normalizedAmountMinor => integer().nullable()();
   TextColumn get note => text().nullable()();
 
   @override
@@ -407,6 +418,12 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(virtualSplits);
             await m.createTable(virtualSplitItems);
           }
+          if (from < 5) {
+            await m.addColumn(splitTransactions, splitTransactions.sourceId);
+            await m.addColumn(splitTransactions, splitTransactions.currency);
+            await m.addColumn(splitTransactions, splitTransactions.exchangeRate);
+            await m.addColumn(splitTransactions, splitTransactions.normalizedAmountMinor);
+          }
         },
         beforeOpen: (details) async {
           await customStatement('''
@@ -428,8 +445,12 @@ class AppDatabase extends _$AppDatabase {
             CREATE TABLE IF NOT EXISTS split_transactions (
               id TEXT NOT NULL PRIMARY KEY,
               transaction_id TEXT NOT NULL REFERENCES transactions(id),
-              category_id TEXT NOT NULL REFERENCES categories(id),
+              category_id TEXT REFERENCES categories(id),
+              source_id TEXT REFERENCES money_sources(id),
               amount_minor INTEGER NOT NULL,
+              currency TEXT NOT NULL DEFAULT 'DZD',
+              exchange_rate REAL NOT NULL DEFAULT 1.0,
+              normalized_amount_minor INTEGER,
               note TEXT
             );
           ''');
@@ -456,6 +477,34 @@ class AppDatabase extends _$AppDatabase {
               created_at INTEGER NOT NULL DEFAULT (UNIXEPOCH())
             );
           ''');
+
+          // Idempotent column additions for existing installations
+          try {
+            await customStatement('ALTER TABLE split_transactions ADD COLUMN source_id TEXT REFERENCES money_sources(id);');
+          } catch (_) {}
+          try {
+            await customStatement('ALTER TABLE split_transactions ADD COLUMN currency TEXT NOT NULL DEFAULT "DZD";');
+          } catch (_) {}
+          try {
+            await customStatement('ALTER TABLE split_transactions ADD COLUMN exchange_rate REAL NOT NULL DEFAULT 1.0;');
+          } catch (_) {}
+          try {
+            await customStatement('ALTER TABLE split_transactions ADD COLUMN normalized_amount_minor INTEGER;');
+          } catch (_) {}
+
+          // Idempotent performance & integrity index creations
+          try {
+            await customStatement('CREATE UNIQUE INDEX IF NOT EXISTS idx_rec_occ_unique ON recurring_occurrences (recurring_id, scheduled_date);');
+          } catch (_) {}
+          try {
+            await customStatement('CREATE INDEX IF NOT EXISTS idx_txn_date_type ON transactions (date, type);');
+          } catch (_) {}
+          try {
+            await customStatement('CREATE INDEX IF NOT EXISTS idx_txn_date_status ON transactions (date, status);');
+          } catch (_) {}
+          try {
+            await customStatement('CREATE INDEX IF NOT EXISTS idx_rec_active_auto_next ON recurring_transactions (is_active, auto_execute, next_occurrence);');
+          } catch (_) {}
         },
       );
 

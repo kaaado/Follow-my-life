@@ -44,4 +44,28 @@ class BudgetRepository {
       return Failure(DatabaseFailure('Failed to create budget', e.toString()));
     }
   }
+
+  /// Deletes a budget with soft delete (setting isActive = false) while preserving historical ledger transactions.
+  Future<Result<bool>> deleteBudget(String budgetId) async {
+    try {
+      return await _db.transaction(() async {
+        final existing = await (_db.select(_db.budgets)..where((t) => t.id.equals(budgetId))).getSingleOrNull();
+        if (existing == null) {
+          return const Failure(NotFoundFailure('Budget not found'));
+        }
+
+        // Soft delete to preserve audit history and avoid cascading transaction changes
+        await (_db.update(_db.budgets)..where((t) => t.id.equals(budgetId))).write(
+          BudgetsCompanion(
+            isActive: const Value(false),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+
+        return const Success(true);
+      });
+    } catch (e) {
+      return Failure(DatabaseFailure('Failed to delete budget: $e'));
+    }
+  }
 }

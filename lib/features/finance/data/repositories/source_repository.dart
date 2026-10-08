@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:follow_my_life/core/database/app_database.dart';
 import 'package:follow_my_life/core/errors/failures.dart';
 import 'package:follow_my_life/core/errors/result.dart';
+import 'package:follow_my_life/core/utils/currency_conversion_service.dart';
 import 'package:uuid/uuid.dart';
 
 class SourceRepository {
@@ -179,13 +180,20 @@ class SourceRepository {
     }
   }
 
-  /// Get total balance across all active sources.
-  Future<Result<int>> getTotalBalance() async {
+  /// Get total balance across all active sources converted to base currency.
+  Future<Result<int>> getTotalBalance({String targetCurrency = 'DZD'}) async {
     try {
       final sources = await (_db.select(_db.moneySources)
             ..where((t) => t.isActive.equals(true)))
           .get();
-      final total = sources.fold<int>(0, (sum, s) => sum + s.cachedBalanceMinor);
+      int total = 0;
+      for (final s in sources) {
+        total += CurrencyConversionService.convertMinor(
+          amountMinor: s.cachedBalanceMinor,
+          fromCurrency: s.currency,
+          toCurrency: targetCurrency,
+        );
+      }
       return Success(total);
     } catch (e) {
       return Failure(DatabaseFailure('Failed to get total balance', e.toString()));

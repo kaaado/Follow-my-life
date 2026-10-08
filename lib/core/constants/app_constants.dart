@@ -12,7 +12,7 @@ class AppConstants {
 
   // Database
   static const String databaseName = 'follow_my_life.db';
-  static const int databaseVersion = 4;
+  static const int databaseVersion = 5;
 
   // Backup
   static const String backupFileExtension = '.fml';

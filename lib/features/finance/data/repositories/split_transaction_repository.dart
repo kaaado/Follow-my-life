@@ -5,13 +5,21 @@ import 'package:follow_my_life/core/errors/result.dart';
 import 'package:uuid/uuid.dart';
 
 class SplitItemInput {
-  final String categoryId;
+  final String? categoryId;
+  final String? sourceId;
   final int amountMinor;
+  final String currency;
+  final double exchangeRate;
+  final int? normalizedAmountMinor;
   final String? note;
 
   const SplitItemInput({
-    required this.categoryId,
+    this.categoryId,
+    this.sourceId,
     required this.amountMinor,
+    this.currency = 'DZD',
+    this.exchangeRate = 1.0,
+    this.normalizedAmountMinor,
     this.note,
   });
 }
@@ -49,8 +57,12 @@ class SplitTransactionRepository {
                 SplitTransactionsCompanion.insert(
                   id: _uuid.v4(),
                   transactionId: transactionId,
-                  categoryId: item.categoryId,
+                  categoryId: Value(item.categoryId),
+                  sourceId: Value(item.sourceId),
                   amountMinor: item.amountMinor,
+                  currency: Value(item.currency),
+                  exchangeRate: Value(item.exchangeRate),
+                  normalizedAmountMinor: Value(item.normalizedAmountMinor),
                   note: Value(item.note),
                 ),
               );

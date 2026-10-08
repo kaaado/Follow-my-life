@@ -28,6 +28,7 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
   DateTime _startDate = DateTime.now();
   String? _selectedSourceId;
   String? _selectedCategoryId;
+  bool _isActive = true;
   bool _isLoading = false;
 
   @override
@@ -40,8 +41,13 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
   Future<void> _saveRecurring() async {
     if (!_formKey.currentState!.validate()) return;
     
-    if (_selectedSourceId == null) {
-      AppFeedback.showError(context, context.tr('select_source'));
+    if (_selectedSourceId == null || _selectedSourceId!.isEmpty) {
+      AppFeedback.showError(
+        context,
+        _type == 'income'
+            ? context.tr('select_destination_source')
+            : context.tr('select_source'),
+      );
       return;
     }
     
@@ -59,6 +65,10 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
         startDate: _startDate,
         sourceId: _selectedSourceId ?? '',
         categoryId: _selectedCategoryId,
+        isActive: _isActive,
+        autoExecute: true,
+        payee: _type == 'expense' ? _nameController.text.trim() : null,
+        incomeOrigin: _type == 'income' ? _nameController.text.trim() : null,
       );
 
       result.when(
@@ -85,6 +95,11 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
   Widget build(BuildContext context) {
     final sourcesAsync = ref.watch(activeSourcesProvider);
     final categoriesAsync = ref.watch(activeCategoriesProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final isIncome = _type == 'income';
+    final sourceLabel = isIncome ? context.tr('destination_source') : context.tr('funding_source');
+    final sourceHint = isIncome ? context.tr('select_destination_source') : context.tr('select_source');
 
     return Scaffold(
       appBar: AppBar(
@@ -142,7 +157,7 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
                 decoration: InputDecoration(
                   labelText: _type == 'expense' ? context.tr('subscription_bill_name') : context.tr('income_name'),
                   prefixIcon: const Icon(LucideIcons.repeat),
-                  hintText: _type == 'expense' ? 'e.g. Netflix, Rent' : 'e.g. Salary',
+                  hintText: _type == 'expense' ? 'e.g. Netflix, Rent' : 'e.g. Monthly Salary',
                 ),
                 validator: (val) => val == null || val.trim().isEmpty ? context.tr('enter_name') : null,
               ),
@@ -191,7 +206,7 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
                   final date = await showDatePicker(
                     context: context,
                     initialDate: _startDate,
-                    firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
                     lastDate: DateTime(2100),
                   );
                   if (date != null) setState(() => _startDate = date);
@@ -207,19 +222,43 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
               
               const SizedBox(height: AppSpacing.lg),
 
+              // Destination Source (Income) or Funding Source (Expense)
               sourcesAsync.when(
                 data: (sources) {
-                  if (sources.isEmpty) return const SizedBox.shrink();
+                  if (sources.isEmpty) {
+                    return Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                        border: Border.all(color: AppColors.error),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            context.tr('need_source_first'),
+                            style: AppTypography.bodyMedium(color: AppColors.error).copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          ElevatedButton(
+                            onPressed: () => context.push('/add-source'),
+                            child: Text(context.tr('add_source')),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                   
                   return DropdownButtonFormField<String>(
                     value: _selectedSourceId,
-                    hint: Text(context.tr('select_source')),
+                    hint: Text(sourceHint),
                     decoration: InputDecoration(
-                      labelText: context.tr('auto_post_source'),
-                      prefixIcon: const Icon(LucideIcons.wallet),
+                      labelText: sourceLabel,
+                      prefixIcon: Icon(isIncome ? LucideIcons.arrowDownToLine : LucideIcons.wallet, color: isIncome ? AppColors.income : AppColors.expense),
                     ),
-                    items: sources.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
-                    validator: (val) => val == null ? context.tr('select_source') : null,
+                    items: sources.map((s) => DropdownMenuItem(value: s.id, child: Text('${s.name} (${s.currency})'))).toList(),
+                    validator: (val) => val == null || val.isEmpty ? sourceHint : null,
                     onChanged: (val) => setState(() => _selectedSourceId = val),
                   );
                 },
@@ -248,6 +287,37 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
                 },
                 loading: () => const CircularProgressIndicator(),
                 error: (err, stack) => const SizedBox.shrink(),
+              ),
+
+              const SizedBox(height: AppSpacing.lg),
+
+              // Active Operation Toggle
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkCard : AppColors.lightCard,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                  border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                ),
+                child: SwitchListTile(
+                  value: _isActive,
+                  onChanged: (val) => setState(() => _isActive = val),
+                  title: Text(
+                    context.tr('active_operation'),
+                    style: AppTypography.bodyMedium(
+                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                    ).copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    context.tr('active_operation_desc'),
+                    style: AppTypography.bodySmall(
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                  secondary: Icon(
+                    _isActive ? LucideIcons.checkCircle2 : LucideIcons.pauseCircle,
+                    color: _isActive ? AppColors.success : AppColors.warning,
+                  ),
+                ),
               ),
             ],
           ),

@@ -116,6 +116,62 @@ final recentTransactionsProvider = StreamProvider<List<Transaction>>((ref) {
       .watchRecentTransactions(limit: 15);
 });
 
+class TransactionsQueryParams {
+  final DateTime month;
+  final String type;
+  final String searchQuery;
+  final int page;
+  final int pageSize;
+
+  const TransactionsQueryParams({
+    required this.month,
+    this.type = 'all',
+    this.searchQuery = '',
+    this.page = 1,
+    this.pageSize = 15,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TransactionsQueryParams &&
+          other.month.year == month.year &&
+          other.month.month == month.month &&
+          other.type == type &&
+          other.searchQuery == searchQuery &&
+          other.page == page &&
+          other.pageSize == pageSize;
+
+  @override
+  int get hashCode => Object.hash(month.year, month.month, type, searchQuery, page, pageSize);
+}
+
+final pagedTransactionsProvider =
+    FutureProvider.family<PagedTransactionsResult, TransactionsQueryParams>((ref, params) async {
+  // Invalidate when recent transactions change to keep in sync
+  ref.watch(recentTransactionsProvider);
+  final repo = ref.watch(transactionRepositoryProvider);
+  final res = await repo.getTransactionsPaged(
+    month: params.month,
+    type: params.type,
+    searchQuery: params.searchQuery,
+    page: params.page,
+    pageSize: params.pageSize,
+  );
+  return res.when(
+    success: (data) => data,
+    failure: (f) => PagedTransactionsResult(
+      items: [],
+      totalCount: 0,
+      page: params.page,
+      pageSize: params.pageSize,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    ),
+  );
+});
+
 /// Total balance across all sources.
 final totalBalanceProvider = FutureProvider<int>((ref) async {
   // Watch sources to auto-refresh when sources change

@@ -33,6 +33,29 @@ class RecurringPage extends ConsumerWidget {
         title: Text(context.tr('recurring')),
         actions: [
           IconButton(
+            tooltip: context.tr('refresh'),
+            icon: const Icon(LucideIcons.refreshCw, size: 20),
+            onPressed: () async {
+              final result = await ref.read(recurringRepositoryProvider).checkAndAutoExecuteDue();
+              ref.invalidate(activeRecurringProvider);
+              ref.invalidate(activeSourcesProvider);
+              ref.invalidate(recentTransactionsProvider);
+              ref.invalidate(financialSummaryProvider);
+              if (context.mounted) {
+                result.when(
+                  success: (count) {
+                    if (count > 0) {
+                      AppFeedback.showSuccess(context, 'Processed $count due occurrence(s)');
+                    } else {
+                      AppFeedback.showInfo(context, 'All recurring items are up to date');
+                    }
+                  },
+                  failure: (f) => AppFeedback.showError(context, f.message),
+                );
+              }
+            },
+          ),
+          IconButton(
             icon: const Icon(LucideIcons.plus),
             onPressed: () => context.push('/add-recurring'),
           ),
@@ -55,13 +78,44 @@ class RecurringPage extends ConsumerWidget {
             );
           }
 
+          final sources = sourcesAsync.valueOrNull ?? [];
+          final activeSourceIds = sources.map((s) => s.id).toSet();
+          final hasAttentionItems = recurrings.any((r) => !activeSourceIds.contains(r.sourceId));
+
           return ListView.builder(
             padding: const EdgeInsets.all(AppSpacing.screenHorizontal),
-            itemCount: recurrings.length,
+            itemCount: recurrings.length + (hasAttentionItems ? 1 : 0),
             itemBuilder: (context, index) {
-              final item = recurrings[index];
+              // Warning banner if any item requires attention
+              if (hasAttentionItems && index == 0) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                    border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.alertTriangle, color: AppColors.error, size: 22),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Text(
+                          context.tr('recurring_requires_attention'),
+                          style: AppTypography.bodySmall(color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary).copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final actualIndex = hasAttentionItems ? index - 1 : index;
+              final item = recurrings[actualIndex];
               final isIncome = item.type == 'income';
               final freqKey = 'freq_${item.frequency.toLowerCase()}';
+              final isSourceValid = activeSourceIds.contains(item.sourceId);
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -108,6 +162,23 @@ class RecurringPage extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            if (!isSourceValid) ...[
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  const Icon(LucideIcons.alertCircle, size: 12, color: AppColors.error),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      context.tr('recurring_requires_attention'),
+                                      style: AppTypography.labelSmall(color: AppColors.error).copyWith(fontSize: 10),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -134,13 +205,25 @@ class RecurringPage extends ConsumerWidget {
                           size: 18,
                           color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
                         ),
-                        onSelected: (val) {
-                          if (val == 'edit') {
+                        onSelected: (val) async {
+                          if (val == 'run_now') {
+                            final result = await ref.read(recurringRepositoryProvider).executeOccurrence(item.id);
+                            ref.invalidate(activeRecurringProvider);
+                            ref.invalidate(activeSourcesProvider);
+                            ref.invalidate(recentTransactionsProvider);
+                            ref.invalidate(financialSummaryProvider);
+                            if (context.mounted) {
+                              result.when(
+                                success: (_) => AppFeedback.showSuccess(context, 'Executed occurrence for ${item.description}'),
+                                failure: (f) => AppFeedback.showError(context, f.message),
+                              );
+                            }
+                          } else if (val == 'edit') {
                             _showEditRecurringDialog(
                               context,
                               ref,
                               item,
-                              sourcesAsync.valueOrNull ?? [],
+                              sources,
                               categoriesAsync.valueOrNull ?? [],
                             );
                           } else if (val == 'delete') {
@@ -148,6 +231,16 @@ class RecurringPage extends ConsumerWidget {
                           }
                         },
                         itemBuilder: (ctx) => [
+                          PopupMenuItem(
+                            value: 'run_now',
+                            child: Row(
+                              children: [
+                                const Icon(LucideIcons.play, size: 16, color: AppColors.success),
+                                const SizedBox(width: 8),
+                                Text(context.tr('view_all')),
+                              ],
+                            ),
+                          ),
                           PopupMenuItem(
                             value: 'edit',
                             child: Row(
@@ -199,6 +292,8 @@ class RecurringPage extends ConsumerWidget {
         ? item.sourceId
         : (sources.isNotEmpty ? sources.first.id : item.sourceId);
     String? categoryId = item.categoryId;
+    bool isActive = item.isActive;
+    final isIncome = item.type == 'income';
 
     showDialog(
       context: context,
@@ -240,12 +335,14 @@ class RecurringPage extends ConsumerWidget {
                   DropdownButtonFormField<String>(
                     initialValue: sourceId,
                     items: sources
-                        .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
+                        .map((s) => DropdownMenuItem(value: s.id, child: Text('${s.name} (${s.currency})')))
                         .toList(),
                     onChanged: (val) {
                       if (val != null) setDialogState(() => sourceId = val);
                     },
-                    decoration: InputDecoration(labelText: context.tr('source')),
+                    decoration: InputDecoration(
+                      labelText: isIncome ? context.tr('destination_source') : context.tr('funding_source'),
+                    ),
                   ),
                 ],
                 if (categories.isNotEmpty) ...[
@@ -268,6 +365,13 @@ class RecurringPage extends ConsumerWidget {
                     decoration: InputDecoration(labelText: context.tr('category')),
                   ),
                 ],
+                const SizedBox(height: AppSpacing.md),
+                SwitchListTile(
+                  value: isActive,
+                  onChanged: (val) => setDialogState(() => isActive = val),
+                  title: Text(context.tr('active_operation')),
+                  contentPadding: EdgeInsets.zero,
+                ),
               ],
             ),
           ),
@@ -287,6 +391,7 @@ class RecurringPage extends ConsumerWidget {
                         frequency: frequency,
                         sourceId: sourceId,
                         categoryId: categoryId,
+                        isActive: isActive,
                       );
                   ref.invalidate(activeRecurringProvider);
                   ref.invalidate(financialSummaryProvider);

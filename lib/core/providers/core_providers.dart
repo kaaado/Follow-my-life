@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:follow_my_life/app/theme/app_theme_presets.dart';
 import 'package:follow_my_life/core/database/app_database.dart';
 import 'package:follow_my_life/core/security/security_service.dart';
+import 'package:follow_my_life/core/storage/backup_service.dart';
 
 /// Single database instance for the entire app.
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -18,6 +19,11 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 /// Security service provider.
 final securityServiceProvider = ChangeNotifierProvider<SecurityService>((ref) {
   return SecurityService();
+});
+
+/// Database backup and restore service provider.
+final backupServiceProvider = Provider<BackupService>((ref) {
+  return BackupService(ref.watch(databaseProvider));
 });
 
 /// Initial value providers (can be overridden before runApp)

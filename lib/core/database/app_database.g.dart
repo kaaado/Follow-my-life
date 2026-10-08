@@ -8153,11 +8153,25 @@ class $SplitTransactionsTable extends SplitTransactions
   late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
     'category_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'REFERENCES categories (id)',
+    ),
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES money_sources (id)',
     ),
   );
   static const VerificationMeta _amountMinorMeta = const VerificationMeta(
@@ -8170,6 +8184,40 @@ class $SplitTransactionsTable extends SplitTransactions
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('DZD'),
+  );
+  static const VerificationMeta _exchangeRateMeta = const VerificationMeta(
+    'exchangeRate',
+  );
+  @override
+  late final GeneratedColumn<double> exchangeRate = GeneratedColumn<double>(
+    'exchange_rate',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1.0),
+  );
+  static const VerificationMeta _normalizedAmountMinorMeta =
+      const VerificationMeta('normalizedAmountMinor');
+  @override
+  late final GeneratedColumn<int> normalizedAmountMinor = GeneratedColumn<int>(
+    'normalized_amount_minor',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _noteMeta = const VerificationMeta('note');
   @override
@@ -8185,7 +8233,11 @@ class $SplitTransactionsTable extends SplitTransactions
     id,
     transactionId,
     categoryId,
+    sourceId,
     amountMinor,
+    currency,
+    exchangeRate,
+    normalizedAmountMinor,
     note,
   ];
   @override
@@ -8221,8 +8273,12 @@ class $SplitTransactionsTable extends SplitTransactions
         _categoryIdMeta,
         categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_categoryIdMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
     }
     if (data.containsKey('amount_minor')) {
       context.handle(
@@ -8234,6 +8290,30 @@ class $SplitTransactionsTable extends SplitTransactions
       );
     } else if (isInserting) {
       context.missing(_amountMinorMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('exchange_rate')) {
+      context.handle(
+        _exchangeRateMeta,
+        exchangeRate.isAcceptableOrUnknown(
+          data['exchange_rate']!,
+          _exchangeRateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('normalized_amount_minor')) {
+      context.handle(
+        _normalizedAmountMinorMeta,
+        normalizedAmountMinor.isAcceptableOrUnknown(
+          data['normalized_amount_minor']!,
+          _normalizedAmountMinorMeta,
+        ),
+      );
     }
     if (data.containsKey('note')) {
       context.handle(
@@ -8261,11 +8341,27 @@ class $SplitTransactionsTable extends SplitTransactions
       categoryId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}category_id'],
-      )!,
+      ),
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      ),
       amountMinor: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}amount_minor'],
       )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      exchangeRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}exchange_rate'],
+      )!,
+      normalizedAmountMinor: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}normalized_amount_minor'],
+      ),
       note: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}note'],
@@ -8283,14 +8379,22 @@ class SplitTransaction extends DataClass
     implements Insertable<SplitTransaction> {
   final String id;
   final String transactionId;
-  final String categoryId;
+  final String? categoryId;
+  final String? sourceId;
   final int amountMinor;
+  final String currency;
+  final double exchangeRate;
+  final int? normalizedAmountMinor;
   final String? note;
   const SplitTransaction({
     required this.id,
     required this.transactionId,
-    required this.categoryId,
+    this.categoryId,
+    this.sourceId,
     required this.amountMinor,
+    required this.currency,
+    required this.exchangeRate,
+    this.normalizedAmountMinor,
     this.note,
   });
   @override
@@ -8298,8 +8402,18 @@ class SplitTransaction extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['transaction_id'] = Variable<String>(transactionId);
-    map['category_id'] = Variable<String>(categoryId);
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<String>(categoryId);
+    }
+    if (!nullToAbsent || sourceId != null) {
+      map['source_id'] = Variable<String>(sourceId);
+    }
     map['amount_minor'] = Variable<int>(amountMinor);
+    map['currency'] = Variable<String>(currency);
+    map['exchange_rate'] = Variable<double>(exchangeRate);
+    if (!nullToAbsent || normalizedAmountMinor != null) {
+      map['normalized_amount_minor'] = Variable<int>(normalizedAmountMinor);
+    }
     if (!nullToAbsent || note != null) {
       map['note'] = Variable<String>(note);
     }
@@ -8310,8 +8424,18 @@ class SplitTransaction extends DataClass
     return SplitTransactionsCompanion(
       id: Value(id),
       transactionId: Value(transactionId),
-      categoryId: Value(categoryId),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
+      sourceId: sourceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceId),
       amountMinor: Value(amountMinor),
+      currency: Value(currency),
+      exchangeRate: Value(exchangeRate),
+      normalizedAmountMinor: normalizedAmountMinor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(normalizedAmountMinor),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
     );
   }
@@ -8324,8 +8448,14 @@ class SplitTransaction extends DataClass
     return SplitTransaction(
       id: serializer.fromJson<String>(json['id']),
       transactionId: serializer.fromJson<String>(json['transactionId']),
-      categoryId: serializer.fromJson<String>(json['categoryId']),
+      categoryId: serializer.fromJson<String?>(json['categoryId']),
+      sourceId: serializer.fromJson<String?>(json['sourceId']),
       amountMinor: serializer.fromJson<int>(json['amountMinor']),
+      currency: serializer.fromJson<String>(json['currency']),
+      exchangeRate: serializer.fromJson<double>(json['exchangeRate']),
+      normalizedAmountMinor: serializer.fromJson<int?>(
+        json['normalizedAmountMinor'],
+      ),
       note: serializer.fromJson<String?>(json['note']),
     );
   }
@@ -8335,8 +8465,12 @@ class SplitTransaction extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'transactionId': serializer.toJson<String>(transactionId),
-      'categoryId': serializer.toJson<String>(categoryId),
+      'categoryId': serializer.toJson<String?>(categoryId),
+      'sourceId': serializer.toJson<String?>(sourceId),
       'amountMinor': serializer.toJson<int>(amountMinor),
+      'currency': serializer.toJson<String>(currency),
+      'exchangeRate': serializer.toJson<double>(exchangeRate),
+      'normalizedAmountMinor': serializer.toJson<int?>(normalizedAmountMinor),
       'note': serializer.toJson<String?>(note),
     };
   }
@@ -8344,14 +8478,24 @@ class SplitTransaction extends DataClass
   SplitTransaction copyWith({
     String? id,
     String? transactionId,
-    String? categoryId,
+    Value<String?> categoryId = const Value.absent(),
+    Value<String?> sourceId = const Value.absent(),
     int? amountMinor,
+    String? currency,
+    double? exchangeRate,
+    Value<int?> normalizedAmountMinor = const Value.absent(),
     Value<String?> note = const Value.absent(),
   }) => SplitTransaction(
     id: id ?? this.id,
     transactionId: transactionId ?? this.transactionId,
-    categoryId: categoryId ?? this.categoryId,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
+    sourceId: sourceId.present ? sourceId.value : this.sourceId,
     amountMinor: amountMinor ?? this.amountMinor,
+    currency: currency ?? this.currency,
+    exchangeRate: exchangeRate ?? this.exchangeRate,
+    normalizedAmountMinor: normalizedAmountMinor.present
+        ? normalizedAmountMinor.value
+        : this.normalizedAmountMinor,
     note: note.present ? note.value : this.note,
   );
   SplitTransaction copyWithCompanion(SplitTransactionsCompanion data) {
@@ -8363,9 +8507,17 @@ class SplitTransaction extends DataClass
       categoryId: data.categoryId.present
           ? data.categoryId.value
           : this.categoryId,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
       amountMinor: data.amountMinor.present
           ? data.amountMinor.value
           : this.amountMinor,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      exchangeRate: data.exchangeRate.present
+          ? data.exchangeRate.value
+          : this.exchangeRate,
+      normalizedAmountMinor: data.normalizedAmountMinor.present
+          ? data.normalizedAmountMinor.value
+          : this.normalizedAmountMinor,
       note: data.note.present ? data.note.value : this.note,
     );
   }
@@ -8376,15 +8528,28 @@ class SplitTransaction extends DataClass
           ..write('id: $id, ')
           ..write('transactionId: $transactionId, ')
           ..write('categoryId: $categoryId, ')
+          ..write('sourceId: $sourceId, ')
           ..write('amountMinor: $amountMinor, ')
+          ..write('currency: $currency, ')
+          ..write('exchangeRate: $exchangeRate, ')
+          ..write('normalizedAmountMinor: $normalizedAmountMinor, ')
           ..write('note: $note')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, transactionId, categoryId, amountMinor, note);
+  int get hashCode => Object.hash(
+    id,
+    transactionId,
+    categoryId,
+    sourceId,
+    amountMinor,
+    currency,
+    exchangeRate,
+    normalizedAmountMinor,
+    note,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -8392,41 +8557,60 @@ class SplitTransaction extends DataClass
           other.id == this.id &&
           other.transactionId == this.transactionId &&
           other.categoryId == this.categoryId &&
+          other.sourceId == this.sourceId &&
           other.amountMinor == this.amountMinor &&
+          other.currency == this.currency &&
+          other.exchangeRate == this.exchangeRate &&
+          other.normalizedAmountMinor == this.normalizedAmountMinor &&
           other.note == this.note);
 }
 
 class SplitTransactionsCompanion extends UpdateCompanion<SplitTransaction> {
   final Value<String> id;
   final Value<String> transactionId;
-  final Value<String> categoryId;
+  final Value<String?> categoryId;
+  final Value<String?> sourceId;
   final Value<int> amountMinor;
+  final Value<String> currency;
+  final Value<double> exchangeRate;
+  final Value<int?> normalizedAmountMinor;
   final Value<String?> note;
   final Value<int> rowid;
   const SplitTransactionsCompanion({
     this.id = const Value.absent(),
     this.transactionId = const Value.absent(),
     this.categoryId = const Value.absent(),
+    this.sourceId = const Value.absent(),
     this.amountMinor = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.exchangeRate = const Value.absent(),
+    this.normalizedAmountMinor = const Value.absent(),
     this.note = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SplitTransactionsCompanion.insert({
     required String id,
     required String transactionId,
-    required String categoryId,
+    this.categoryId = const Value.absent(),
+    this.sourceId = const Value.absent(),
     required int amountMinor,
+    this.currency = const Value.absent(),
+    this.exchangeRate = const Value.absent(),
+    this.normalizedAmountMinor = const Value.absent(),
     this.note = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        transactionId = Value(transactionId),
-       categoryId = Value(categoryId),
        amountMinor = Value(amountMinor);
   static Insertable<SplitTransaction> custom({
     Expression<String>? id,
     Expression<String>? transactionId,
     Expression<String>? categoryId,
+    Expression<String>? sourceId,
     Expression<int>? amountMinor,
+    Expression<String>? currency,
+    Expression<double>? exchangeRate,
+    Expression<int>? normalizedAmountMinor,
     Expression<String>? note,
     Expression<int>? rowid,
   }) {
@@ -8434,7 +8618,12 @@ class SplitTransactionsCompanion extends UpdateCompanion<SplitTransaction> {
       if (id != null) 'id': id,
       if (transactionId != null) 'transaction_id': transactionId,
       if (categoryId != null) 'category_id': categoryId,
+      if (sourceId != null) 'source_id': sourceId,
       if (amountMinor != null) 'amount_minor': amountMinor,
+      if (currency != null) 'currency': currency,
+      if (exchangeRate != null) 'exchange_rate': exchangeRate,
+      if (normalizedAmountMinor != null)
+        'normalized_amount_minor': normalizedAmountMinor,
       if (note != null) 'note': note,
       if (rowid != null) 'rowid': rowid,
     });
@@ -8443,8 +8632,12 @@ class SplitTransactionsCompanion extends UpdateCompanion<SplitTransaction> {
   SplitTransactionsCompanion copyWith({
     Value<String>? id,
     Value<String>? transactionId,
-    Value<String>? categoryId,
+    Value<String?>? categoryId,
+    Value<String?>? sourceId,
     Value<int>? amountMinor,
+    Value<String>? currency,
+    Value<double>? exchangeRate,
+    Value<int?>? normalizedAmountMinor,
     Value<String?>? note,
     Value<int>? rowid,
   }) {
@@ -8452,7 +8645,12 @@ class SplitTransactionsCompanion extends UpdateCompanion<SplitTransaction> {
       id: id ?? this.id,
       transactionId: transactionId ?? this.transactionId,
       categoryId: categoryId ?? this.categoryId,
+      sourceId: sourceId ?? this.sourceId,
       amountMinor: amountMinor ?? this.amountMinor,
+      currency: currency ?? this.currency,
+      exchangeRate: exchangeRate ?? this.exchangeRate,
+      normalizedAmountMinor:
+          normalizedAmountMinor ?? this.normalizedAmountMinor,
       note: note ?? this.note,
       rowid: rowid ?? this.rowid,
     );
@@ -8470,8 +8668,22 @@ class SplitTransactionsCompanion extends UpdateCompanion<SplitTransaction> {
     if (categoryId.present) {
       map['category_id'] = Variable<String>(categoryId.value);
     }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
     if (amountMinor.present) {
       map['amount_minor'] = Variable<int>(amountMinor.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (exchangeRate.present) {
+      map['exchange_rate'] = Variable<double>(exchangeRate.value);
+    }
+    if (normalizedAmountMinor.present) {
+      map['normalized_amount_minor'] = Variable<int>(
+        normalizedAmountMinor.value,
+      );
     }
     if (note.present) {
       map['note'] = Variable<String>(note.value);
@@ -8488,7 +8700,11 @@ class SplitTransactionsCompanion extends UpdateCompanion<SplitTransaction> {
           ..write('id: $id, ')
           ..write('transactionId: $transactionId, ')
           ..write('categoryId: $categoryId, ')
+          ..write('sourceId: $sourceId, ')
           ..write('amountMinor: $amountMinor, ')
+          ..write('currency: $currency, ')
+          ..write('exchangeRate: $exchangeRate, ')
+          ..write('normalizedAmountMinor: $normalizedAmountMinor, ')
           ..write('note: $note, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -9943,6 +10159,30 @@ final class $$MoneySourcesTableReferences
     );
   }
 
+  static MultiTypedResultKey<$SplitTransactionsTable, List<SplitTransaction>>
+  _splitTransactionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.splitTransactions,
+        aliasName: $_aliasNameGenerator(
+          db.moneySources.id,
+          db.splitTransactions.sourceId,
+        ),
+      );
+
+  $$SplitTransactionsTableProcessedTableManager get splitTransactionsRefs {
+    final manager = $$SplitTransactionsTableTableManager(
+      $_db,
+      $_db.splitTransactions,
+    ).filter((f) => f.sourceId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _splitTransactionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$VirtualSplitsTable, List<VirtualSplit>>
   _virtualSplitsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.virtualSplits,
@@ -10127,6 +10367,31 @@ class $$MoneySourcesTableFilterComposer
           }) => $$ExpectedIncomesTableFilterComposer(
             $db: $db,
             $table: $db.expectedIncomes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> splitTransactionsRefs(
+    Expression<bool> Function($$SplitTransactionsTableFilterComposer f) f,
+  ) {
+    final $$SplitTransactionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.splitTransactions,
+      getReferencedColumn: (t) => t.sourceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SplitTransactionsTableFilterComposer(
+            $db: $db,
+            $table: $db.splitTransactions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -10385,6 +10650,32 @@ class $$MoneySourcesTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> splitTransactionsRefs<T extends Object>(
+    Expression<T> Function($$SplitTransactionsTableAnnotationComposer a) f,
+  ) {
+    final $$SplitTransactionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.splitTransactions,
+          getReferencedColumn: (t) => t.sourceId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SplitTransactionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.splitTransactions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> virtualSplitsRefs<T extends Object>(
     Expression<T> Function($$VirtualSplitsTableAnnotationComposer a) f,
   ) {
@@ -10429,6 +10720,7 @@ class $$MoneySourcesTableTableManager
             bool recurringTransactionsRefs,
             bool financialAllocationsRefs,
             bool expectedIncomesRefs,
+            bool splitTransactionsRefs,
             bool virtualSplitsRefs,
           })
         > {
@@ -10517,6 +10809,7 @@ class $$MoneySourcesTableTableManager
                 recurringTransactionsRefs = false,
                 financialAllocationsRefs = false,
                 expectedIncomesRefs = false,
+                splitTransactionsRefs = false,
                 virtualSplitsRefs = false,
               }) {
                 return PrefetchHooks(
@@ -10526,6 +10819,7 @@ class $$MoneySourcesTableTableManager
                     if (recurringTransactionsRefs) db.recurringTransactions,
                     if (financialAllocationsRefs) db.financialAllocations,
                     if (expectedIncomesRefs) db.expectedIncomes,
+                    if (splitTransactionsRefs) db.splitTransactions,
                     if (virtualSplitsRefs) db.virtualSplits,
                   ],
                   addJoins: null,
@@ -10615,6 +10909,27 @@ class $$MoneySourcesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (splitTransactionsRefs)
+                        await $_getPrefetchedData<
+                          MoneySource,
+                          $MoneySourcesTable,
+                          SplitTransaction
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MoneySourcesTableReferences
+                              ._splitTransactionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MoneySourcesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).splitTransactionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sourceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (virtualSplitsRefs)
                         await $_getPrefetchedData<
                           MoneySource,
@@ -10661,6 +10976,7 @@ typedef $$MoneySourcesTableProcessedTableManager =
         bool recurringTransactionsRefs,
         bool financialAllocationsRefs,
         bool expectedIncomesRefs,
+        bool splitTransactionsRefs,
         bool virtualSplitsRefs,
       })
     >;
@@ -17051,8 +17367,12 @@ typedef $$SplitTransactionsTableCreateCompanionBuilder =
     SplitTransactionsCompanion Function({
       required String id,
       required String transactionId,
-      required String categoryId,
+      Value<String?> categoryId,
+      Value<String?> sourceId,
       required int amountMinor,
+      Value<String> currency,
+      Value<double> exchangeRate,
+      Value<int?> normalizedAmountMinor,
       Value<String?> note,
       Value<int> rowid,
     });
@@ -17060,8 +17380,12 @@ typedef $$SplitTransactionsTableUpdateCompanionBuilder =
     SplitTransactionsCompanion Function({
       Value<String> id,
       Value<String> transactionId,
-      Value<String> categoryId,
+      Value<String?> categoryId,
+      Value<String?> sourceId,
       Value<int> amountMinor,
+      Value<String> currency,
+      Value<double> exchangeRate,
+      Value<int?> normalizedAmountMinor,
       Value<String?> note,
       Value<int> rowid,
     });
@@ -17106,14 +17430,33 @@ final class $$SplitTransactionsTableReferences
         $_aliasNameGenerator(db.splitTransactions.categoryId, db.categories.id),
       );
 
-  $$CategoriesTableProcessedTableManager get categoryId {
-    final $_column = $_itemColumn<String>('category_id')!;
-
+  $$CategoriesTableProcessedTableManager? get categoryId {
+    final $_column = $_itemColumn<String>('category_id');
+    if ($_column == null) return null;
     final manager = $$CategoriesTableTableManager(
       $_db,
       $_db.categories,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_categoryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $MoneySourcesTable _sourceIdTable(_$AppDatabase db) =>
+      db.moneySources.createAlias(
+        $_aliasNameGenerator(db.splitTransactions.sourceId, db.moneySources.id),
+      );
+
+  $$MoneySourcesTableProcessedTableManager? get sourceId {
+    final $_column = $_itemColumn<String>('source_id');
+    if ($_column == null) return null;
+    final manager = $$MoneySourcesTableTableManager(
+      $_db,
+      $_db.moneySources,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sourceIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -17137,6 +17480,21 @@ class $$SplitTransactionsTableFilterComposer
 
   ColumnFilters<int> get amountMinor => $composableBuilder(
     column: $table.amountMinor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get exchangeRate => $composableBuilder(
+    column: $table.exchangeRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get normalizedAmountMinor => $composableBuilder(
+    column: $table.normalizedAmountMinor,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17190,6 +17548,29 @@ class $$SplitTransactionsTableFilterComposer
     );
     return composer;
   }
+
+  $$MoneySourcesTableFilterComposer get sourceId {
+    final $$MoneySourcesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.moneySources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MoneySourcesTableFilterComposer(
+            $db: $db,
+            $table: $db.moneySources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$SplitTransactionsTableOrderingComposer
@@ -17208,6 +17589,21 @@ class $$SplitTransactionsTableOrderingComposer
 
   ColumnOrderings<int> get amountMinor => $composableBuilder(
     column: $table.amountMinor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get exchangeRate => $composableBuilder(
+    column: $table.exchangeRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get normalizedAmountMinor => $composableBuilder(
+    column: $table.normalizedAmountMinor,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -17261,6 +17657,29 @@ class $$SplitTransactionsTableOrderingComposer
     );
     return composer;
   }
+
+  $$MoneySourcesTableOrderingComposer get sourceId {
+    final $$MoneySourcesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.moneySources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MoneySourcesTableOrderingComposer(
+            $db: $db,
+            $table: $db.moneySources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$SplitTransactionsTableAnnotationComposer
@@ -17277,6 +17696,19 @@ class $$SplitTransactionsTableAnnotationComposer
 
   GeneratedColumn<int> get amountMinor => $composableBuilder(
     column: $table.amountMinor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<double> get exchangeRate => $composableBuilder(
+    column: $table.exchangeRate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get normalizedAmountMinor => $composableBuilder(
+    column: $table.normalizedAmountMinor,
     builder: (column) => column,
   );
 
@@ -17328,6 +17760,29 @@ class $$SplitTransactionsTableAnnotationComposer
     );
     return composer;
   }
+
+  $$MoneySourcesTableAnnotationComposer get sourceId {
+    final $$MoneySourcesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.moneySources,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MoneySourcesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.moneySources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$SplitTransactionsTableTableManager
@@ -17343,7 +17798,11 @@ class $$SplitTransactionsTableTableManager
           $$SplitTransactionsTableUpdateCompanionBuilder,
           (SplitTransaction, $$SplitTransactionsTableReferences),
           SplitTransaction,
-          PrefetchHooks Function({bool transactionId, bool categoryId})
+          PrefetchHooks Function({
+            bool transactionId,
+            bool categoryId,
+            bool sourceId,
+          })
         > {
   $$SplitTransactionsTableTableManager(
     _$AppDatabase db,
@@ -17365,15 +17824,23 @@ class $$SplitTransactionsTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> transactionId = const Value.absent(),
-                Value<String> categoryId = const Value.absent(),
+                Value<String?> categoryId = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
                 Value<int> amountMinor = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<double> exchangeRate = const Value.absent(),
+                Value<int?> normalizedAmountMinor = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SplitTransactionsCompanion(
                 id: id,
                 transactionId: transactionId,
                 categoryId: categoryId,
+                sourceId: sourceId,
                 amountMinor: amountMinor,
+                currency: currency,
+                exchangeRate: exchangeRate,
+                normalizedAmountMinor: normalizedAmountMinor,
                 note: note,
                 rowid: rowid,
               ),
@@ -17381,15 +17848,23 @@ class $$SplitTransactionsTableTableManager
               ({
                 required String id,
                 required String transactionId,
-                required String categoryId,
+                Value<String?> categoryId = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
                 required int amountMinor,
+                Value<String> currency = const Value.absent(),
+                Value<double> exchangeRate = const Value.absent(),
+                Value<int?> normalizedAmountMinor = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SplitTransactionsCompanion.insert(
                 id: id,
                 transactionId: transactionId,
                 categoryId: categoryId,
+                sourceId: sourceId,
                 amountMinor: amountMinor,
+                currency: currency,
+                exchangeRate: exchangeRate,
+                normalizedAmountMinor: normalizedAmountMinor,
                 note: note,
                 rowid: rowid,
               ),
@@ -17401,64 +17876,80 @@ class $$SplitTransactionsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({transactionId = false, categoryId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (transactionId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.transactionId,
-                                referencedTable:
-                                    $$SplitTransactionsTableReferences
-                                        ._transactionIdTable(db),
-                                referencedColumn:
-                                    $$SplitTransactionsTableReferences
-                                        ._transactionIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
-                    if (categoryId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.categoryId,
-                                referencedTable:
-                                    $$SplitTransactionsTableReferences
-                                        ._categoryIdTable(db),
-                                referencedColumn:
-                                    $$SplitTransactionsTableReferences
-                                        ._categoryIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({transactionId = false, categoryId = false, sourceId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (transactionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.transactionId,
+                                    referencedTable:
+                                        $$SplitTransactionsTableReferences
+                                            ._transactionIdTable(db),
+                                    referencedColumn:
+                                        $$SplitTransactionsTableReferences
+                                            ._transactionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (categoryId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.categoryId,
+                                    referencedTable:
+                                        $$SplitTransactionsTableReferences
+                                            ._categoryIdTable(db),
+                                    referencedColumn:
+                                        $$SplitTransactionsTableReferences
+                                            ._categoryIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (sourceId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.sourceId,
+                                    referencedTable:
+                                        $$SplitTransactionsTableReferences
+                                            ._sourceIdTable(db),
+                                    referencedColumn:
+                                        $$SplitTransactionsTableReferences
+                                            ._sourceIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -17475,7 +17966,11 @@ typedef $$SplitTransactionsTableProcessedTableManager =
       $$SplitTransactionsTableUpdateCompanionBuilder,
       (SplitTransaction, $$SplitTransactionsTableReferences),
       SplitTransaction,
-      PrefetchHooks Function({bool transactionId, bool categoryId})
+      PrefetchHooks Function({
+        bool transactionId,
+        bool categoryId,
+        bool sourceId,
+      })
     >;
 typedef $$VirtualSplitsTableCreateCompanionBuilder =
     VirtualSplitsCompanion Function({

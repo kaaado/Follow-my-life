@@ -6,6 +6,7 @@ import 'package:follow_my_life/app/theme/app_typography.dart';
 import 'package:follow_my_life/app/theme/app_spacing.dart';
 import 'package:follow_my_life/core/localization/app_localizations.dart';
 import 'package:follow_my_life/core/utils/money_formatter.dart';
+import 'package:follow_my_life/core/widgets/app_feedback.dart';
 import 'package:follow_my_life/features/finance/application/providers/finance_providers.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -116,9 +117,70 @@ class BudgetsPage extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    Text(
-                      MoneyFormatter.format(b.amountMinor, currency: b.currency),
-                      style: AppTypography.headlineSmall(color: primaryColor),
+                    Row(
+                      children: [
+                        Text(
+                          MoneyFormatter.format(b.amountMinor, currency: b.currency),
+                          style: AppTypography.headlineSmall(color: primaryColor),
+                        ),
+                        PopupMenuButton<String>(
+                          icon: Icon(
+                            LucideIcons.moreVertical,
+                            size: 18,
+                            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          ),
+                          padding: EdgeInsets.zero,
+                          onSelected: (value) async {
+                            if (value == 'delete') {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: Text(context.tr('delete_budget')),
+                                  content: Text(context.tr('delete_budget_confirm')),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(false),
+                                      child: Text(context.tr('cancel')),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(true),
+                                      style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                                      child: Text(context.tr('delete')),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirmed == true && context.mounted) {
+                                final res = await ref.read(budgetRepositoryProvider).deleteBudget(b.id);
+                                if (context.mounted) {
+                                  if (res.isSuccess) {
+                                    ref.invalidate(activeBudgetsProvider);
+                                    AppFeedback.showSuccess(context, context.tr('item_deleted'));
+                                  } else {
+                                    AppFeedback.showError(context, res.failure.message);
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  const Icon(LucideIcons.trash2, color: AppColors.error, size: 18),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Text(
+                                    context.tr('delete_budget'),
+                                    style: AppTypography.bodyMedium(color: AppColors.error),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),

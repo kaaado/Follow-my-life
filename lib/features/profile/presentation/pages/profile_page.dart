@@ -1,7 +1,10 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:follow_my_life/app/theme/app_colors.dart';
 import 'package:follow_my_life/app/theme/app_spacing.dart';
 import 'package:follow_my_life/app/theme/app_typography.dart';
@@ -9,7 +12,6 @@ import 'package:follow_my_life/core/localization/app_localizations.dart';
 import 'package:follow_my_life/core/providers/core_providers.dart';
 import 'package:follow_my_life/core/widgets/app_feedback.dart';
 import 'package:follow_my_life/features/finance/application/providers/finance_providers.dart';
-
 import 'package:follow_my_life/app/theme/app_theme_presets.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -415,26 +417,141 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void _showBackupDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(context.tr('backup_restore')),
-        content: Text(context.tr('backup_json_desc')),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              AppFeedback.showSuccess(context, context.tr('backup_export_saved'));
-            },
-            child: Text(context.tr('export_backup')),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              AppFeedback.showSuccess(context, context.tr('backup_imported'));
-            },
-            child: Text(context.tr('import_backup')),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final backupService = ref.read(backupServiceProvider);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return FutureBuilder<bool>(
+              future: backupService.isOnlineBackupEnabled(),
+              builder: (context, snapshot) {
+                final isOnlineEnabled = snapshot.data ?? false;
+
+                return AlertDialog(
+                  title: Row(
+                    children: [
+                      const Icon(LucideIcons.cloud, size: 22),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(context.tr('backup_restore')),
+                    ],
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr('backup_json_desc'),
+                        style: AppTypography.bodySmall(
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkCard : AppColors.lightCard,
+                          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                          border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                        ),
+                        child: SwitchListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                          title: Text(
+                            context.tr('online_backup'),
+                            style: AppTypography.bodyMedium(
+                              color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                            ).copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            isOnlineEnabled
+                                ? context.tr('online_backup_enabled')
+                                : context.tr('online_backup_disabled'),
+                            style: AppTypography.bodySmall(
+                              color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                            ),
+                          ),
+                          value: isOnlineEnabled,
+                          onChanged: (val) async {
+                            await backupService.setOnlineBackupEnabled(val);
+                            setDialogState(() {});
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton.icon(
+                      icon: const Icon(LucideIcons.share2, size: 16),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        final exportResult = await backupService.exportBackupToFile();
+                        if (context.mounted) {
+                          exportResult.when(
+                            success: (path) async {
+                              AppFeedback.showSuccess(context, context.tr('backup_export_saved'));
+                              try {
+                                await Share.shareXFiles([XFile(path)], text: 'Follow My Life Database Backup');
+                              } catch (_) {}
+                            },
+                            failure: (err) {
+                              AppFeedback.showError(context, err.message);
+                            },
+                          );
+                        }
+                      },
+                      label: Text(context.tr('export_backup')),
+                    ),
+                    ElevatedButton.icon(
+                      icon: const Icon(LucideIcons.fileInput, size: 16),
+                      onPressed: () async {
+                        try {
+                          final result = await FilePicker.platform.pickFiles(
+                            type: FileType.custom,
+                            allowedExtensions: ['json'],
+                          );
+                          if (result != null && result.files.single.path != null) {
+                            final file = File(result.files.single.path!);
+                            final jsonContent = await file.readAsString();
+                            final restoreResult = await backupService.restoreBackup(jsonContent);
+
+                            if (context.mounted) {
+                              Navigator.pop(ctx);
+                              restoreResult.when(
+                                success: (_) {
+                                  // Invalidate all reactive finance providers
+                                  ref.invalidate(profileProvider);
+                                  ref.invalidate(activeSourcesProvider);
+                                  ref.invalidate(recentTransactionsProvider);
+                                  ref.invalidate(activePurchasesProvider);
+                                  ref.invalidate(activeBudgetsProvider);
+                                  ref.invalidate(activeRecurringProvider);
+                                  ref.invalidate(activeDebtsProvider);
+                                  ref.invalidate(activeVirtualSplitsProvider);
+                                  ref.invalidate(financialSnapshotProvider);
+                                  ref.invalidate(financialSummaryProvider);
+
+                                  AppFeedback.showSuccess(context, context.tr('backup_imported'));
+                                },
+                                failure: (err) {
+                                  AppFeedback.showError(context, err.message);
+                                },
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            AppFeedback.showError(context, 'Failed to read backup file: ${e.toString()}');
+                          }
+                        }
+                      },
+                      label: Text(context.tr('import_backup')),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
