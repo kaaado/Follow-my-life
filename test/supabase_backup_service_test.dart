@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
@@ -6,9 +5,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:follow_my_life/core/constants/app_constants.dart';
 import 'package:follow_my_life/core/database/app_database.dart';
-import 'package:follow_my_life/core/storage/app_value_serializer.dart';
 import 'package:follow_my_life/core/storage/backup_service.dart';
 import 'package:follow_my_life/core/storage/supabase_backup_service.dart';
+import 'package:follow_my_life/core/config/env_config.dart';
 
 class FakeSecureStorage implements FlutterSecureStorage {
   final Map<String, String> _data = {};
@@ -59,6 +58,8 @@ void main() {
       expect(SupabaseBackupService.directPort, 5432);
       expect(SupabaseBackupService.directUser, 'postgres');
       expect(SupabaseBackupService.directDatabase, 'postgres');
+      expect(EnvConfig.resolvedAnonKey.isNotEmpty, isTrue);
+      expect(EnvConfig.resolvedAnonKey.contains('placeholder'), isFalse);
     });
 
     test('Phone identifier can be saved, retrieved and updated securely', () async {
@@ -222,14 +223,37 @@ void main() {
       tempDir.deleteSync(recursive: true);
     });
 
-    test('Online backup enabled setting can be toggled and read', () async {
-      expect(await backupService.isOnlineBackupEnabled(), isFalse);
+    test('Cloud Sync Key generates automatically with fml- prefix', () async {
+      final key = await supabaseService.getSyncKey();
+      expect(key.startsWith('fml-'), isTrue);
+      expect(key.length, 10); // 'fml-' (4) + 6 chars
 
-      await backupService.setOnlineBackupEnabled(true);
-      expect(await backupService.isOnlineBackupEnabled(), isTrue);
+      // Re-calling getSyncKey returns same persistent key
+      final key2 = await supabaseService.getSyncKey();
+      expect(key2, key);
+    });
 
-      await backupService.setOnlineBackupEnabled(false);
-      expect(await backupService.isOnlineBackupEnabled(), isFalse);
+    test('Cloud Sync Key can be customized and transferred across devices', () async {
+      await supabaseService.setSyncKey('fml-device-xyz');
+      expect(await supabaseService.getSyncKey(), 'fml-device-xyz');
+      expect(await supabaseService.getCurrentIdentifier(), 'fml-device-xyz');
+
+      // Generate a new fresh key
+      final freshKey = await supabaseService.generateNewSyncKey();
+      expect(freshKey.startsWith('fml-'), isTrue);
+      expect(freshKey, isNot('fml-device-xyz'));
+      expect(await supabaseService.getSyncKey(), freshKey);
+    });
+
+    test('getCredentials reads saved credentials accurately', () async {
+      await supabaseService.saveCredentials(
+        anonKey: 'custom_anon_jwt_token',
+        url: 'https://custom-project.supabase.co',
+      );
+
+      final creds = await supabaseService.getCredentials();
+      expect(creds['anonKey'], 'custom_anon_jwt_token');
+      expect(creds['url'], 'https://custom-project.supabase.co');
     });
   });
 }

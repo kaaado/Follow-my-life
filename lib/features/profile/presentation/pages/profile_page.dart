@@ -1,10 +1,7 @@
-import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:follow_my_life/app/theme/app_colors.dart';
 import 'package:follow_my_life/app/theme/app_spacing.dart';
 import 'package:follow_my_life/app/theme/app_typography.dart';

@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 void main() {
   final file = File('w:/Document/Follow_My_Life/lib/core/localization/app_localizations.dart');
@@ -43,9 +43,9 @@ void main() {
       \\'cat_emergency\\': \\'طوارئ\\',
       \\'cat_other\\': \\'أخرى\\',''';
 
-  content = content.replaceFirst('\\'en\\': {', '\\'en\\': {\\n\');
-  content = content.replaceFirst('\\'fr\\': {', '\\'fr\\': {\\n\');
-  content = content.replaceFirst('\\'ar\\': {', '\\'ar\\': {\\n\');
+  content = content.replaceFirst("'en': {", "'en': {\\n");
+  content = content.replaceFirst("'fr': {", "'fr': {\\n");
+  content = content.replaceFirst("'ar': {", "'ar': {\\n");
 
   file.writeAsStringSync(content);
   print('Done');

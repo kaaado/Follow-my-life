@@ -57,6 +57,10 @@ dev_dependencies:
   riverpod_lint: ^2.6.5
   flutter_launcher_icons: ^0.14.2
 
+dependency_overrides:
+  lucide_icons:
+    path: packages/lucide_icons
+
 flutter_launcher_icons:
   android: true
   ios: true

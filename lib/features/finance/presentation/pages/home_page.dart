@@ -10,6 +10,7 @@ import 'package:follow_my_life/core/providers/core_providers.dart';
 import 'package:follow_my_life/core/utils/money_formatter.dart';
 import 'package:follow_my_life/core/utils/date_helper.dart';
 import 'package:follow_my_life/core/widgets/glass_card.dart';
+import 'package:follow_my_life/core/widgets/app_skeleton.dart';
 import 'package:follow_my_life/features/finance/application/providers/finance_providers.dart';
 import 'package:follow_my_life/core/database/app_database.dart';
 import 'package:follow_my_life/features/finance/domain/services/safe_to_spend_service.dart';
@@ -27,6 +28,29 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   bool _isBalanceExpanded = false;
   bool _hideAmounts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAutoExecuteRecurring();
+    });
+  }
+
+  Future<void> _checkAutoExecuteRecurring() async {
+    try {
+      final repo = ref.read(recurringRepositoryProvider);
+      final executedResult = await repo.checkAndAutoExecuteDue();
+      if (executedResult.isSuccess && executedResult.value > 0 && mounted) {
+        ref.invalidate(activeSourcesProvider);
+        ref.invalidate(recentTransactionsProvider);
+        ref.invalidate(financialSummaryProvider);
+        ref.invalidate(activeRecurringProvider);
+      }
+    } catch (_) {
+      // Auto-execution fail-safe
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -518,22 +542,41 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                 ],
               ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: actionColor.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: AppSpacing.md, right: AppSpacing.md, top: 10),
+                    child: Row(
+                      children: [
+                        Icon(LucideIcons.bot, size: 14, color: actionColor),
+                        const SizedBox(width: 6),
+                        Text(
+                          context.tr('ai_coach'),
+                          style: AppTypography.labelSmall(color: actionColor).copyWith(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Icon(actionIcon, color: actionColor, size: 20),
-                ),
-                title: Text(
-                  title,
-                  style: AppTypography.bodyMedium(
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                  ).copyWith(fontWeight: FontWeight.bold),
-                ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: actionColor.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(actionIcon, color: actionColor, size: 20),
+                    ),
+                    title: Text(
+                      title,
+                      style: AppTypography.bodyMedium(
+                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      ).copyWith(fontWeight: FontWeight.bold),
+                    ),
                 subtitle: Text(
                   description,
                   style: AppTypography.bodySmall(
@@ -560,9 +603,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                 ),
               ),
-            ),
-          ],
-        );
+            ],
+          ),
+        ),
+      ],
+    );
       },
       orElse: () => const SizedBox.shrink(),
     );
@@ -962,10 +1007,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final summaryData = summaryAsync.valueOrNull;
 
     if (summaryData == null && summaryAsync.isLoading) {
-      return const GlassCard(
-        padding: EdgeInsets.all(AppSpacing.md),
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const SkeletonCard(height: 140);
     }
 
     if (summaryData == null) {
@@ -1285,7 +1327,15 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => Column(
+        children: List.generate(
+          3,
+          (index) => const Padding(
+            padding: EdgeInsets.only(bottom: AppSpacing.sm),
+            child: SkeletonCard(height: 72),
+          ),
+        ),
+      ),
       error: (err, stack) => Text(context.tr('item_not_found')),
     );
   }

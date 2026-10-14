@@ -3,13 +3,9 @@
 /// Monetary amounts stored as integer minor units (centimes).
 library;
 
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 import 'package:follow_my_life/core/constants/app_constants.dart';
+import 'connection/connection.dart';
 
 part 'app_database.g.dart';
 
@@ -385,7 +381,7 @@ class VirtualSplitItems extends Table {
   VirtualSplitItems,
 ])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  AppDatabase() : super(openConnection());
 
   // For testing
   AppDatabase.forTesting(super.e);
@@ -537,17 +533,3 @@ class AppDatabase extends _$AppDatabase {
   }
 }
 
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    final dbDir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbDir.path, AppConstants.databaseName));
-    return NativeDatabase(
-      file,
-      setup: (rawDb) {
-        rawDb.execute('PRAGMA journal_mode = WAL;');
-        rawDb.execute('PRAGMA foreign_keys = ON;');
-        rawDb.execute('PRAGMA synchronous = NORMAL;');
-      },
-    );
-  });
-}

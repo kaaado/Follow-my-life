@@ -23,7 +23,7 @@ class CreateVirtualSplitPage extends ConsumerStatefulWidget {
 class _CreateVirtualSplitPageState extends ConsumerState<CreateVirtualSplitPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  String? _selectedSourceId;
+  final Set<String> _selectedSourceIds = {};
 
   final List<({TextEditingController amountCtrl, String? categoryId, TextEditingController noteCtrl})> _items = [];
 
@@ -109,14 +109,15 @@ class _CreateVirtualSplitPageState extends ConsumerState<CreateVirtualSplitPage>
     final sources = sourcesAsync.valueOrNull ?? [];
     final categories = categoriesAsync.valueOrNull ?? [];
 
-    if (_selectedSourceId == null && sources.isNotEmpty) {
-      _selectedSourceId = sources.first.id;
+    if (_selectedSourceIds.isEmpty && sources.isNotEmpty) {
+      _selectedSourceIds.add(sources.first.id);
     }
 
-    final selectedSource = sources.where((s) => s.id == _selectedSourceId).firstOrNull ?? (sources.isNotEmpty ? sources.first : null);
+    final selectedSources = sources.where((s) => _selectedSourceIds.contains(s.id)).toList();
+    final primarySource = selectedSources.isNotEmpty ? selectedSources.first : (sources.isNotEmpty ? sources.first : null);
 
-    final currency = selectedSource?.currency ?? 'DZD';
-    final availableBalance = selectedSource?.cachedBalanceMinor ?? 0;
+    final currency = primarySource?.currency ?? 'DZD';
+    final availableBalance = selectedSources.fold<int>(0, (sum, s) => sum + s.cachedBalanceMinor);
 
     int currentTotalMinor = 0;
     for (final item in _items) {
@@ -152,28 +153,118 @@ class _CreateVirtualSplitPageState extends ConsumerState<CreateVirtualSplitPage>
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // Select Source Dropdown
-            DropdownButtonFormField<String>(
-              initialValue: _selectedSourceId,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: context.tr('source'),
-                prefixIcon: const Icon(LucideIcons.wallet),
-              ),
-              items: sources.map((s) {
-                return DropdownMenuItem(
-                  value: s.id,
-                  child: Text(
-                    '${s.name} (${MoneyFormatter.format(s.cachedBalanceMinor, currency: s.currency)})',
-                    overflow: TextOverflow.ellipsis,
+            // ─── Choose Source(s) of Money (Multi-Check) ───────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(LucideIcons.wallet, size: 20, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      context.tr('choose_funding_sources'),
+                      style: AppTypography.headlineSmall(
+                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                  ),
+                  icon: Icon(
+                    _selectedSourceIds.length == sources.length
+                        ? LucideIcons.checkCheck
+                        : LucideIcons.layers,
+                    size: 16,
+                  ),
+                  label: Text(context.tr('all_sources')),
+                  onPressed: () {
+                    setState(() {
+                      if (_selectedSourceIds.length == sources.length) {
+                        _selectedSourceIds.clear();
+                        _selectedSourceIds.add(sources.first.id);
+                      } else {
+                        _selectedSourceIds.clear();
+                        for (final s in sources) {
+                          _selectedSourceIds.add(s.id);
+                        }
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: sources.map((s) {
+                final isChecked = _selectedSourceIds.contains(s.id);
+                return InkWell(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  onTap: () {
+                    setState(() {
+                      if (isChecked) {
+                        if (_selectedSourceIds.length > 1) {
+                          _selectedSourceIds.remove(s.id);
+                        } else {
+                          AppFeedback.showError(context, context.tr('select_at_least_one_source'));
+                        }
+                      } else {
+                        _selectedSourceIds.add(s.id);
+                      }
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: isChecked
+                          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                          : (isDark ? AppColors.darkCard : AppColors.lightCard),
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                      border: Border.all(
+                        color: isChecked
+                            ? Theme.of(context).colorScheme.primary
+                            : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                        width: isChecked ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isChecked ? LucideIcons.checkSquare : LucideIcons.square,
+                          size: 18,
+                          color: isChecked
+                              ? Theme.of(context).colorScheme.primary
+                              : (isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          s.name,
+                          style: AppTypography.bodyMedium(
+                            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                          ).copyWith(fontWeight: isChecked ? FontWeight.bold : FontWeight.normal),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          '(${MoneyFormatter.format(s.cachedBalanceMinor, currency: s.currency)})',
+                          style: AppTypography.bodySmall(
+                            color: isChecked
+                                ? Theme.of(context).colorScheme.primary
+                                : (isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }).toList(),
-              onChanged: (val) {
-                setState(() {
-                  _selectedSourceId = val;
-                });
-              },
             ),
             const SizedBox(height: AppSpacing.lg),
 
@@ -362,7 +453,10 @@ class _CreateVirtualSplitPageState extends ConsumerState<CreateVirtualSplitPage>
             ElevatedButton(
               onPressed: () async {
                 if (!_formKey.currentState!.validate()) return;
-                if (_selectedSourceId == null) return;
+                if (_selectedSourceIds.isEmpty) {
+                  AppFeedback.showError(context, context.tr('select_at_least_one_source'));
+                  return;
+                }
 
                 if (remainingUnallocated < 0) {
                   AppFeedback.showError(context, context.tr('split_exceeds_balance'));
@@ -386,7 +480,7 @@ class _CreateVirtualSplitPageState extends ConsumerState<CreateVirtualSplitPage>
                 final repo = ref.read(virtualSplitRepositoryProvider);
                 await repo.createVirtualSplit(
                   name: _nameController.text.trim(),
-                  sourceId: _selectedSourceId!,
+                  sourceId: _selectedSourceIds.first,
                   items: payloadItems,
                   currency: currency,
                 );

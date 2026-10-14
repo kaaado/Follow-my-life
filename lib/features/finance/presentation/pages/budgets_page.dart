@@ -7,6 +7,7 @@ import 'package:follow_my_life/app/theme/app_spacing.dart';
 import 'package:follow_my_life/core/localization/app_localizations.dart';
 import 'package:follow_my_life/core/utils/money_formatter.dart';
 import 'package:follow_my_life/core/widgets/app_feedback.dart';
+import 'package:follow_my_life/core/widgets/app_skeleton.dart';
 import 'package:follow_my_life/features/finance/application/providers/finance_providers.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -188,7 +189,12 @@ class BudgetsPage extends ConsumerWidget {
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => ListView.separated(
+          padding: const EdgeInsets.all(AppSpacing.screenHorizontal),
+          itemCount: 4,
+          separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.md),
+          itemBuilder: (context, index) => const SkeletonCard(height: 100),
+        ),
         error: (err, stack) => Center(child: Text(context.tr('error_loading_budgets'))),
       ),
     );

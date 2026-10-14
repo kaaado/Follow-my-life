@@ -126,6 +126,14 @@ class RecurringRepository {
           ));
 
       final rec = await (_db.select(_db.recurringTransactions)..where((t) => t.id.equals(id))).getSingle();
+      
+      // If scheduled date is today or earlier and autoExecute is true, immediately execute it
+      final now = DateTime.now();
+      final endOfToday = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      if (isActive && autoExecute && (startDate.isBefore(endOfToday) || startDate.isAtSameMomentAs(endOfToday))) {
+        await checkAndAutoExecuteDue();
+      }
+
       return Success(rec);
     } catch (e) {
       return Failure(DatabaseFailure('Failed to create recurring transaction: $e'));
@@ -256,8 +264,11 @@ class RecurringRepository {
   Future<Result<int>> checkAndAutoExecuteDue() async {
     try {
       final now = DateTime.now();
+      // Compare against the end of today so any recurrence scheduled on this calendar day executes automatically
+      final endOfToday = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+
       final dueItems = await (_db.select(_db.recurringTransactions)
-            ..where((t) => t.isActive.equals(true) & t.autoExecute.equals(true) & t.nextOccurrence.isSmallerOrEqualValue(now)))
+            ..where((t) => t.isActive.equals(true) & t.autoExecute.equals(true) & t.nextOccurrence.isSmallerOrEqualValue(endOfToday)))
           .get();
 
       int executedCount = 0;
@@ -266,8 +277,8 @@ class RecurringRepository {
         var currentItem = item;
         int catchupIterations = 0;
 
-        // Catch up all missed occurrences up to now (capped at 24 iterations)
-        while (currentItem.nextOccurrence.isBefore(now) || currentItem.nextOccurrence.isAtSameMomentAs(now)) {
+        // Catch up all missed or due occurrences up to the end of today (capped at 24 iterations)
+        while (currentItem.nextOccurrence.isBefore(endOfToday) || currentItem.nextOccurrence.isAtSameMomentAs(endOfToday)) {
           if (catchupIterations >= 24) break;
 
           final result = await executeOccurrence(currentItem.id, targetScheduledDate: currentItem.nextOccurrence);

@@ -40,6 +40,7 @@ CREATE POLICY "Users can view their own backups"
         OR identifier = auth.uid()::text
         OR phone = (auth.jwt()->>'phone')
         OR email = (auth.jwt()->>'email')
+        OR auth.role() = 'anon'
     );
 
 -- Users can insert their own backups

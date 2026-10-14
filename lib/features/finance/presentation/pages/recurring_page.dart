@@ -10,6 +10,7 @@ import 'package:follow_my_life/core/utils/date_helper.dart';
 import 'package:follow_my_life/core/widgets/app_feedback.dart';
 import 'package:follow_my_life/core/widgets/app_empty_state.dart';
 import 'package:follow_my_life/core/widgets/glass_card.dart';
+import 'package:follow_my_life/core/widgets/app_skeleton.dart';
 import 'package:follow_my_life/features/finance/application/providers/finance_providers.dart';
 import 'package:follow_my_life/core/database/app_database.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -270,7 +271,12 @@ class RecurringPage extends ConsumerWidget {
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => ListView.separated(
+          padding: const EdgeInsets.all(AppSpacing.screenHorizontal),
+          itemCount: 4,
+          separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.md),
+          itemBuilder: (context, index) => const SkeletonCard(height: 84),
+        ),
         error: (err, stack) => Center(child: Text(context.tr('error_loading_recurring'))),
       ),
     );

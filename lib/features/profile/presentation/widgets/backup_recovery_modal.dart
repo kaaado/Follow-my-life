@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:share_plus/share_plus.dart';
@@ -9,6 +10,7 @@ import 'package:follow_my_life/app/theme/app_spacing.dart';
 import 'package:follow_my_life/app/theme/app_typography.dart';
 import 'package:follow_my_life/core/localization/app_localizations.dart';
 import 'package:follow_my_life/core/providers/core_providers.dart';
+import 'package:follow_my_life/core/storage/supabase_backup_service.dart';
 import 'package:follow_my_life/core/widgets/app_feedback.dart';
 import 'package:follow_my_life/features/finance/application/providers/finance_providers.dart';
 
@@ -31,7 +33,7 @@ class BackupRecoveryModal extends ConsumerStatefulWidget {
 class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
   bool _isLoading = false;
   String? _statusMessage;
-  String? _connectedIdentifier;
+  String? _syncKey;
   DateTime? _lastBackupTime;
 
   @override
@@ -44,12 +46,12 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
     final supabaseService = ref.read(supabaseBackupServiceProvider);
     final backupService = ref.read(backupServiceProvider);
 
-    final id = await supabaseService.getCurrentIdentifier();
+    final key = await supabaseService.getSyncKey();
     final lastTime = await backupService.getLastBackupTimestamp();
 
     if (mounted) {
       setState(() {
-        _connectedIdentifier = id;
+        _syncKey = key;
         _lastBackupTime = lastTime;
       });
     }
@@ -73,7 +75,6 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Theme.of(context).colorScheme.primary;
     final backupService = ref.watch(backupServiceProvider);
-    final supabaseService = ref.watch(supabaseBackupServiceProvider);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
@@ -201,7 +202,7 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
 
                     const SizedBox(height: AppSpacing.sm),
 
-                    // Connected Cloud Account Card
+                    // Connected Cloud Sync Key Card
                     Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
@@ -222,12 +223,14 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
                                     height: 8,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: _connectedIdentifier != null ? AppColors.success : AppColors.darkTextTertiary,
+                                      color: (_syncKey != null && _syncKey!.isNotEmpty)
+                                          ? AppColors.success
+                                          : AppColors.darkTextTertiary,
                                     ),
                                   ),
                                   const SizedBox(width: AppSpacing.xs),
                                   Text(
-                                    _connectedIdentifier != null
+                                    (_syncKey != null && _syncKey!.isNotEmpty)
                                         ? context.tr('connected_account')
                                         : context.tr('not_connected'),
                                     style: AppTypography.labelMedium(
@@ -236,43 +239,66 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
                                   ),
                                 ],
                               ),
-                              if (_connectedIdentifier != null)
-                                TextButton.icon(
-                                  style: TextButton.styleFrom(
-                                    visualDensity: VisualDensity.compact,
-                                    foregroundColor: AppColors.error,
-                                  ),
-                                  icon: const Icon(LucideIcons.logOut, size: 14),
-                                  label: Text(context.tr('sign_out')),
-                                  onPressed: () async {
-                                    await supabaseService.signOut();
-                                    await _loadState();
-                                    if (context.mounted) {
-                                      AppFeedback.showSuccess(context, 'Signed out of cloud account.');
-                                    }
-                                  },
-                                )
-                              else
-                                TextButton.icon(
-                                  style: TextButton.styleFrom(
-                                    visualDensity: VisualDensity.compact,
-                                    foregroundColor: primaryColor,
-                                  ),
-                                  icon: const Icon(LucideIcons.userPlus, size: 14),
-                                  label: Text(context.tr('sign_in_to_cloud')),
-                                  onPressed: () => _showAuthDialog(context),
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  foregroundColor: primaryColor,
                                 ),
+                                icon: const Icon(LucideIcons.edit3, size: 14),
+                                label: Text(context.tr('change_sync_key')),
+                                onPressed: () => _showSyncKeyDialog(context),
+                              ),
                             ],
                           ),
-                          if (_connectedIdentifier != null) ...[
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              _connectedIdentifier!,
-                              style: AppTypography.bodyLarge(
-                                color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                              ).copyWith(fontWeight: FontWeight.bold),
+                          const SizedBox(height: AppSpacing.sm),
+
+                          // Monospace Key Box with Copy
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                            decoration: BoxDecoration(
+                              color: (isDark ? Colors.black : Colors.grey.shade100).withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                              border: Border.all(
+                                color: primaryColor.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
                             ),
-                          ],
+                            child: Row(
+                              children: [
+                                Icon(LucideIcons.keyRound, size: 18, color: primaryColor),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: SelectableText(
+                                    _syncKey ?? '...',
+                                    style: AppTypography.bodyMedium(
+                                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                                    ).copyWith(
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(LucideIcons.copy, size: 18),
+                                  tooltip: context.tr('copy_sync_key'),
+                                  onPressed: () {
+                                    if (_syncKey != null && _syncKey!.isNotEmpty) {
+                                      Clipboard.setData(ClipboardData(text: _syncKey!));
+                                      AppFeedback.showSuccess(context, context.tr('sync_key_copied'));
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            context.tr('sync_key_help'),
+                            style: AppTypography.bodySmall(
+                              color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                            ),
+                          ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
                             '${context.tr('last_backup')}: ${_lastBackupTime != null ? _formatDate(_lastBackupTime!) : context.tr('never_backed_up')}',
@@ -306,7 +332,18 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
                       ),
                     ),
 
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.sm),
+
+                    // Quick switch / connect another device key
+                    Center(
+                      child: TextButton.icon(
+                        icon: const Icon(LucideIcons.smartphone, size: 16),
+                        label: Text(context.tr('enter_sync_key')),
+                        onPressed: () => _showSyncKeyDialog(context),
+                      ),
+                    ),
+
+                    const SizedBox(height: AppSpacing.lg),
 
                     // ─── Section 2: Local File Backup & Recovery ───────
                     _buildSectionHeader(
@@ -365,16 +402,7 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
                       ),
                     ),
 
-                    const SizedBox(height: AppSpacing.xl),
-
-                    // ─── Connection Info Footer ────────────────────────
-                    Center(
-                      child: TextButton.icon(
-                        icon: const Icon(LucideIcons.info, size: 14),
-                        label: const Text('Supabase Direct Config & Setup'),
-                        onPressed: () => _showSupabaseConfigDialog(context),
-                      ),
-                    ),
+                    const SizedBox(height: AppSpacing.md),
                   ],
                 ),
               ),
@@ -407,18 +435,16 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
   // ─── Cloud Sync Actions ──────────────────────────────────────────
 
   Future<void> _handleCloudUpload(BuildContext context) async {
-    if (_connectedIdentifier == null || _connectedIdentifier!.isEmpty) {
-      _showAuthDialog(context);
-      return;
-    }
+    final supabaseService = ref.read(supabaseBackupServiceProvider);
+    final key = _syncKey ?? await supabaseService.getSyncKey();
+    if (!context.mounted) return;
 
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Uploading encrypted snapshot to Supabase...';
+      _statusMessage = 'Uploading snapshot to Supabase...';
     });
 
-    final supabaseService = ref.read(supabaseBackupServiceProvider);
-    final result = await supabaseService.uploadBackupToCloud();
+    final result = await supabaseService.uploadBackupToCloud(syncKey: key);
 
     if (!mounted) return;
     setState(() {
@@ -441,10 +467,9 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
   }
 
   Future<void> _handleCloudRestore(BuildContext context) async {
-    if (_connectedIdentifier == null || _connectedIdentifier!.isEmpty) {
-      _showAuthDialog(context);
-      return;
-    }
+    final supabaseService = ref.read(supabaseBackupServiceProvider);
+    final key = _syncKey ?? await supabaseService.getSyncKey();
+    if (!context.mounted) return;
 
     // Confirmation dialog before overwriting local data
     final confirmed = await showDialog<bool>(
@@ -472,8 +497,7 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
       _statusMessage = 'Fetching and validating cloud snapshot...';
     });
 
-    final supabaseService = ref.read(supabaseBackupServiceProvider);
-    final result = await supabaseService.restoreLatestBackupFromCloud();
+    final result = await supabaseService.restoreLatestBackupFromCloud(syncKey: key);
 
     if (!mounted) return;
     setState(() {
@@ -484,6 +508,7 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
     result.when(
       success: (_) {
         _invalidateAllProviders();
+        _loadState();
         AppFeedback.showSuccess(context, context.tr('cloud_restore_success'));
       },
       failure: (err) {
@@ -552,144 +577,92 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
     }
   }
 
-  // ─── Authentication & Identifier Dialog ──────────────────────────
+  // ─── Modals ──────────────────────────────────────────────────────
 
-  void _showAuthDialog(BuildContext context) {
+  void _showSyncKeyDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) {
-        return _SupabaseAuthDialog(
-          onSuccess: (identifier) async {
+        return _SyncKeyDialog(
+          currentKey: _syncKey ?? '',
+          onSaved: (newKey) async {
             await _loadState();
           },
         );
       },
     );
   }
-
-  void _showSupabaseConfigDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Supabase Cloud Connection'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Project Ref: yyjhsexdlqpdbojpfngh', style: TextStyle(fontWeight: FontWeight.bold)),
-            SizedBox(height: 4),
-            Text('API URL: https://yyjhsexdlqpdbojpfngh.supabase.co'),
-            SizedBox(height: 4),
-            Text('Direct DB Host: db.yyjhsexdlqpdbojpfngh.supabase.co'),
-            SizedBox(height: 4),
-            Text('Port: 5432 | User: postgres | DB: postgres'),
-            SizedBox(height: 12),
-            Text(
-              'Backups are securely synchronized to table: public.user_backups with SHA-256 integrity and Row Level Security.',
-              style: TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-class _SupabaseAuthDialog extends ConsumerStatefulWidget {
-  final ValueChanged<String> onSuccess;
+// ─── Sync Key Dialog (Enter or Generate Key) ───────────────────────
 
-  const _SupabaseAuthDialog({required this.onSuccess});
+class _SyncKeyDialog extends ConsumerStatefulWidget {
+  final String currentKey;
+  final ValueChanged<String> onSaved;
+
+  const _SyncKeyDialog({required this.currentKey, required this.onSaved});
 
   @override
-  ConsumerState<_SupabaseAuthDialog> createState() => _SupabaseAuthDialogState();
+  ConsumerState<_SyncKeyDialog> createState() => _SyncKeyDialogState();
 }
 
-class _SupabaseAuthDialogState extends ConsumerState<_SupabaseAuthDialog> {
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+class _SyncKeyDialogState extends ConsumerState<_SyncKeyDialog> {
+  late final TextEditingController _keyController;
 
-  int _selectedTab = 0; // 0: Phone OTP, 1: Email/Password, 2: Direct Phone ID
-  bool _otpSent = false;
-  bool _isLoading = false;
+  @override
+  void initState() {
+    super.initState();
+    _keyController = TextEditingController(text: widget.currentKey);
+  }
+
+  @override
+  void dispose() {
+    _keyController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final supabaseService = ref.read(supabaseBackupServiceProvider);
 
     return AlertDialog(
-      title: Text(context.tr('sign_in_to_cloud')),
+      title: Row(
+        children: [
+          const Icon(LucideIcons.keyRound, size: 20),
+          const SizedBox(width: AppSpacing.xs),
+          Text(context.tr('cloud_sync_key')),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Tabs
-            SegmentedButton<int>(
-              segments: [
-                ButtonSegment(value: 0, label: Text(context.tr('phone_otp_login'))),
-                ButtonSegment(value: 1, label: Text(context.tr('sso_email_login'))),
-              ],
-              selected: {_selectedTab},
-              onSelectionChanged: (set) {
-                setState(() {
-                  _selectedTab = set.first;
-                });
-              },
+            Text(
+              context.tr('sync_key_help'),
+              style: AppTypography.bodySmall(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary,
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
-
-            // Tab 0: Phone + OTP
-            if (_selectedTab == 0) ...[
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: context.tr('phone_number'),
-                  hintText: '+213...',
-                  prefixIcon: const Icon(LucideIcons.phone),
+            TextField(
+              controller: _keyController,
+              decoration: InputDecoration(
+                labelText: context.tr('cloud_sync_key'),
+                hintText: 'e.g. fml-a3b8cd or your custom key',
+                prefixIcon: const Icon(LucideIcons.key),
+                suffixIcon: IconButton(
+                  icon: const Icon(LucideIcons.refreshCw, size: 18),
+                  tooltip: context.tr('generate_random_key'),
+                  onPressed: () {
+                    final newKey = SupabaseBackupService.generateRandomSyncKey();
+                    _keyController.text = newKey;
+                  },
                 ),
               ),
-              if (_otpSent) ...[
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _otpController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  decoration: InputDecoration(
-                    labelText: context.tr('enter_otp'),
-                    prefixIcon: const Icon(LucideIcons.key),
-                  ),
-                ),
-              ],
-            ],
-
-            // Tab 1: Email / SSO
-            if (_selectedTab == 1) ...[
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(LucideIcons.mail),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(LucideIcons.lock),
-                ),
-              ),
-            ],
+            ),
           ],
         ),
       ),
@@ -698,100 +671,24 @@ class _SupabaseAuthDialogState extends ConsumerState<_SupabaseAuthDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.tr('cancel')),
         ),
-
-        // Submit action
         ElevatedButton(
-          onPressed: _isLoading
-              ? null
-              : () async {
-                  setState(() => _isLoading = true);
-                  try {
-                    if (_selectedTab == 0) {
-                      final phone = _phoneController.text.trim();
-                      if (phone.isEmpty) {
-                        AppFeedback.showError(context, 'Please enter a valid phone number.');
-                        return;
-                      }
-
-                      if (!_otpSent) {
-                        final res = await supabaseService.signInWithPhoneOtp(phone);
-                        if (res.isSuccess) {
-                          setState(() => _otpSent = true);
-                          if (context.mounted) {
-                            AppFeedback.showSuccess(context, 'OTP code sent to $phone.');
-                          }
-                        } else {
-                          // If SMS gateway not configured, offer direct phone backup identity
-                          await supabaseService.setPhoneIdentifier(phone);
-                          widget.onSuccess(phone);
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                            AppFeedback.showSuccess(context, 'Phone identity $phone saved for cloud backup.');
-                          }
-                        }
-                      } else {
-                        final code = _otpController.text.trim();
-                        final verifyRes = await supabaseService.verifyPhoneOtp(
-                          phoneNumber: phone,
-                          token: code,
-                        );
-                        if (verifyRes.isSuccess) {
-                          widget.onSuccess(phone);
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                            AppFeedback.showSuccess(context, 'Verified successfully!');
-                          }
-                        } else {
-                          if (context.mounted) {
-                            AppFeedback.showError(context, verifyRes.failure.message);
-                          }
-                        }
-                      }
-                    } else if (_selectedTab == 1) {
-                      final email = _emailController.text.trim();
-                      final password = _passwordController.text;
-
-                      final res = await supabaseService.signInWithEmailPassword(
-                        email: email,
-                        password: password,
-                      );
-
-                      if (res.isSuccess) {
-                        widget.onSuccess(email);
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
-                          AppFeedback.showSuccess(context, 'Signed in successfully!');
-                        }
-                      } else {
-                        // Try sign up if sign in failed
-                        final signUpRes = await supabaseService.signUpWithEmail(
-                          email: email,
-                          password: password,
-                        );
-                        if (signUpRes.isSuccess) {
-                          widget.onSuccess(email);
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                            AppFeedback.showSuccess(context, 'Account created and connected!');
-                          }
-                        } else {
-                          if (context.mounted) {
-                            AppFeedback.showError(context, res.failure.message);
-                          }
-                        }
-                      }
-                    }
-                  } finally {
-                    if (mounted) setState(() => _isLoading = false);
-                  }
-                },
-          child: Text(
-            _selectedTab == 0
-                ? (_otpSent ? context.tr('verify_otp') : context.tr('send_otp'))
-                : context.tr('verify_otp'),
-          ),
+          onPressed: () async {
+            final text = _keyController.text.trim();
+            if (text.isEmpty) {
+              AppFeedback.showError(context, 'Key cannot be empty');
+              return;
+            }
+            await supabaseService.setSyncKey(text);
+            widget.onSaved(text);
+            if (context.mounted) {
+              Navigator.of(context).pop();
+              AppFeedback.showSuccess(context, 'Sync Key updated successfully!');
+            }
+          },
+          child: Text(context.tr('connect_key')),
         ),
       ],
     );
   }
 }
+

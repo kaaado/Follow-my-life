@@ -29,6 +29,7 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
   String? _selectedSourceId;
   String? _selectedCategoryId;
   bool _isActive = true;
+  bool _autoExecute = true;
   bool _isLoading = false;
 
   @override
@@ -66,7 +67,7 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
         sourceId: _selectedSourceId ?? '',
         categoryId: _selectedCategoryId,
         isActive: _isActive,
-        autoExecute: true,
+        autoExecute: _autoExecute,
         payee: _type == 'expense' ? _nameController.text.trim() : null,
         incomeOrigin: _type == 'income' ? _nameController.text.trim() : null,
       );
@@ -136,7 +137,7 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
                   style: ButtonStyle(
                     backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
                       if (states.contains(WidgetState.selected)) {
-                        return _type == 'expense' ? AppColors.expense.withOpacity(0.2) : AppColors.income.withOpacity(0.2);
+                        return _type == 'expense' ? AppColors.expense.withValues(alpha: 0.2) : AppColors.income.withValues(alpha: 0.2);
                       }
                       return Colors.transparent;
                     }),
@@ -316,6 +317,43 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
                   secondary: Icon(
                     _isActive ? LucideIcons.checkCircle2 : LucideIcons.pauseCircle,
                     color: _isActive ? AppColors.success : AppColors.warning,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.md),
+
+              // Auto-Deduct (Expense) or Auto-Deposit (Income) on Due Date
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkCard : AppColors.lightCard,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                  border: Border.all(
+                    color: _autoExecute
+                        ? (isIncome ? AppColors.income.withValues(alpha: 0.5) : AppColors.expense.withValues(alpha: 0.5))
+                        : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                  ),
+                ),
+                child: SwitchListTile(
+                  value: _autoExecute,
+                  onChanged: (val) => setState(() => _autoExecute = val),
+                  title: Text(
+                    isIncome ? context.tr('auto_deposit_on_due') : context.tr('auto_deduct_on_due'),
+                    style: AppTypography.bodyMedium(
+                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                    ).copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    isIncome ? context.tr('auto_deposit_on_due_desc') : context.tr('auto_deduct_on_due_desc'),
+                    style: AppTypography.bodySmall(
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                  secondary: Icon(
+                    isIncome ? LucideIcons.arrowDownToLine : LucideIcons.creditCard,
+                    color: _autoExecute
+                        ? (isIncome ? AppColors.income : AppColors.expense)
+                        : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
                   ),
                 ),
               ),

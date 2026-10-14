@@ -98,6 +98,32 @@ class SmartActionService {
       ));
     }
 
+    // Informal Coach: Frugal streak / healthy surplus celebration
+    if (snapshot.netCashFlowMinor > 0 && snapshot.budgetHealth != 'exceeded') {
+      actions.add(const SmartActionItem(
+        id: 'rec_streak_positive',
+        titleKey: 'ai_insight_streak_title',
+        descriptionKey: 'ai_insight_streak_desc',
+        priority: ActionPriority.recommended,
+        actionType: 'view_summary',
+        routeName: '/reports',
+      ));
+    }
+
+    // Informal Coach: Buffer cushion alert
+    if (snapshot.upcomingCommitmentsMinor > 0 &&
+        snapshot.availableBalanceMinor <= (snapshot.upcomingCommitmentsMinor * 1.3).toInt() &&
+        snapshot.upcomingCommitmentsMinor <= snapshot.availableBalanceMinor) {
+      actions.add(const SmartActionItem(
+        id: 'imp_buffer_cushion',
+        titleKey: 'ai_insight_cushion_title',
+        descriptionKey: 'ai_insight_cushion_desc',
+        priority: ActionPriority.important,
+        actionType: 'view_forecast',
+        routeName: '/forecast',
+      ));
+    }
+
     // 4. Optional Actions
     if (anomalies.isNotEmpty) {
       actions.add(SmartActionItem(
@@ -109,6 +135,30 @@ class SmartActionService {
         priority: ActionPriority.optional,
         actionType: 'view_anomaly',
         routeName: '/reports',
+      ));
+    }
+
+    // Informal Coach: Subscription audit
+    if (subscriptionSummary.upcomingSubscriptions.length >= 2) {
+      actions.add(const SmartActionItem(
+        id: 'opt_sub_audit',
+        titleKey: 'ai_insight_subs_title',
+        descriptionKey: 'ai_insight_subs_desc',
+        priority: ActionPriority.optional,
+        actionType: 'view_recurring',
+        routeName: '/recurring',
+      ));
+    }
+
+    // Informal Coach: Safe-to-spend daily guide
+    if (snapshot.dailyBudgetMinor > 0) {
+      actions.add(const SmartActionItem(
+        id: 'rec_daily_limit',
+        titleKey: 'ai_insight_daily_limit_title',
+        descriptionKey: 'ai_insight_daily_limit_desc',
+        priority: ActionPriority.optional,
+        actionType: 'view_plan',
+        routeName: '/plan',
       ));
     }
 

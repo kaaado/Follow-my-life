@@ -67,7 +67,7 @@ class SourceRepository {
             initialBalanceMinor: Value(initialBalanceMinor),
             cachedBalanceMinor: Value(initialBalanceMinor),
           ));
-      return getSource(id);
+      return await getSource(id);
     } catch (e) {
       return Failure(DatabaseFailure('Failed to create source', e.toString()));
     }
@@ -87,7 +87,7 @@ class SourceRepository {
         colorIndex: colorIndex != null ? Value(colorIndex) : const Value.absent(),
         updatedAt: Value(DateTime.now()),
       ));
-      return getSource(id);
+      return await getSource(id);
     } catch (e) {
       return Failure(DatabaseFailure('Failed to update source', e.toString()));
     }
