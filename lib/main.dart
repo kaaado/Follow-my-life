@@ -7,11 +7,14 @@ import 'package:follow_my_life/app/router/app_router.dart';
 import 'package:follow_my_life/app/theme/app_theme.dart';
 import 'package:follow_my_life/app/theme/app_theme_presets.dart';
 import 'package:follow_my_life/core/constants/app_constants.dart';
+import 'package:drift/drift.dart';
 import 'package:follow_my_life/core/localization/app_localizations.dart';
 import 'package:follow_my_life/core/providers/core_providers.dart';
+import 'package:follow_my_life/core/storage/app_value_serializer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  driftRuntimeOptions.defaultSerializer = AppValueSerializer();
 
   // Enforce portrait orientation
   await SystemChrome.setPreferredOrientations([

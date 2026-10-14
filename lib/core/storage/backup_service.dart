@@ -7,6 +7,7 @@ import 'package:follow_my_life/core/constants/app_constants.dart';
 import 'package:follow_my_life/core/database/app_database.dart';
 import 'package:follow_my_life/core/errors/failures.dart';
 import 'package:follow_my_life/core/errors/result.dart';
+import 'package:follow_my_life/core/storage/app_value_serializer.dart';
 import 'package:path_provider/path_provider.dart';
 
 class BackupPayload {
@@ -43,12 +44,14 @@ class BackupValidationResult {
 
 class BackupService {
   final AppDatabase _db;
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  final FlutterSecureStorage _secureStorage;
+  final AppValueSerializer _serializer = AppValueSerializer();
 
   static const _keyOnlineBackupEnabled = 'online_backup_enabled';
   static const _keyLastBackupTimestamp = 'last_backup_timestamp';
 
-  BackupService(this._db);
+  BackupService(this._db, {FlutterSecureStorage? secureStorage})
+      : _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   // ─── Export Backup ──────────────────────────────────────────
   Future<Result<String>> exportBackup() async {
@@ -70,21 +73,21 @@ class BackupService {
       final expectedIncomes = await _db.select(_db.expectedIncomes).get();
 
       final data = <String, dynamic>{
-        'user_profiles': profiles.map((e) => e.toJson()).toList(),
-        'money_sources': sources.map((e) => e.toJson()).toList(),
-        'categories': categories.map((e) => e.toJson()).toList(),
-        'transactions': transactions.map((e) => e.toJson()).toList(),
-        'transfers': transfers.map((e) => e.toJson()).toList(),
-        'planned_purchases': purchases.map((e) => e.toJson()).toList(),
-        'budgets': budgets.map((e) => e.toJson()).toList(),
-        'recurring_transactions': recurring.map((e) => e.toJson()).toList(),
-        'recurring_occurrences': occurrences.map((e) => e.toJson()).toList(),
-        'debts': debts.map((e) => e.toJson()).toList(),
-        'split_transactions': splits.map((e) => e.toJson()).toList(),
-        'virtual_splits': virtualSplits.map((e) => e.toJson()).toList(),
-        'virtual_split_items': virtualSplitItems.map((e) => e.toJson()).toList(),
-        'financial_allocations': allocations.map((e) => e.toJson()).toList(),
-        'expected_incomes': expectedIncomes.map((e) => e.toJson()).toList(),
+        'user_profiles': profiles.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'money_sources': sources.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'categories': categories.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'transactions': transactions.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'transfers': transfers.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'planned_purchases': purchases.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'budgets': budgets.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'recurring_transactions': recurring.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'recurring_occurrences': occurrences.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'debts': debts.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'split_transactions': splits.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'virtual_splits': virtualSplits.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'virtual_split_items': virtualSplitItems.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'financial_allocations': allocations.map((e) => e.toJson(serializer: _serializer)).toList(),
+        'expected_incomes': expectedIncomes.map((e) => e.toJson(serializer: _serializer)).toList(),
       };
 
       final dataJsonString = jsonEncode(data);
@@ -95,7 +98,7 @@ class BackupService {
 
       final metadata = {
         'app': 'Follow My Life',
-        'app_version': '0.1.0',
+        'app_version': AppConstants.appVersion,
         'schema_version': AppConstants.databaseVersion,
         'exported_at': now.toIso8601String(),
         'record_counts': recordCounts,
@@ -107,10 +110,12 @@ class BackupService {
         data: data,
       );
 
-      await _secureStorage.write(
-        key: _keyLastBackupTimestamp,
-        value: now.toIso8601String(),
-      );
+      try {
+        await _secureStorage.write(
+          key: _keyLastBackupTimestamp,
+          value: now.toIso8601String(),
+        );
+      } catch (_) {}
 
       return Success(jsonEncode(payload.toJson()));
     } catch (e) {
@@ -118,15 +123,31 @@ class BackupService {
     }
   }
 
-  /// Export backup directly to a JSON file on disk.
-  Future<Result<String>> exportBackupToFile() async {
+  /// Export backup directly to a JSON file on persistent phone disk.
+  Future<Result<String>> exportBackupToFile({String? customPath}) async {
     try {
       final exportResult = await exportBackup();
       if (exportResult.isFailure) return Failure(exportResult.failure);
 
-      final dir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${dir.path}/follow_my_life_backup_$timestamp.json');
+      final String filePath;
+      if (customPath != null) {
+        filePath = customPath;
+      } else {
+        Directory dir;
+        try {
+          dir = await getApplicationDocumentsDirectory();
+        } catch (_) {
+          try {
+            dir = await getTemporaryDirectory();
+          } catch (_) {
+            dir = Directory.systemTemp;
+          }
+        }
+        final dateStr = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
+        filePath = '${dir.path}/follow_my_life_backup_$dateStr.json';
+      }
+
+      final file = File(filePath);
       await file.writeAsString(exportResult.value);
 
       return Success(file.path);
@@ -296,11 +317,11 @@ class BackupService {
         await _db.delete(_db.moneySources).go();
         await _db.delete(_db.userProfiles).go();
 
-        // Restore tables in dependency order
+        // Restore tables in dependency order using AppValueSerializer
         final profiles = (data['user_profiles'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final p in profiles) {
           await _db.into(_db.userProfiles).insert(
-                UserProfile.fromJson(p).toCompanion(false),
+                UserProfile.fromJson(p, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -308,7 +329,7 @@ class BackupService {
         final categories = (data['categories'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final c in categories) {
           await _db.into(_db.categories).insert(
-                Category.fromJson(c).toCompanion(false),
+                Category.fromJson(c, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -316,7 +337,7 @@ class BackupService {
         final sources = (data['money_sources'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final s in sources) {
           await _db.into(_db.moneySources).insert(
-                MoneySource.fromJson(s).toCompanion(false),
+                MoneySource.fromJson(s, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -324,7 +345,7 @@ class BackupService {
         final txns = (data['transactions'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final t in txns) {
           await _db.into(_db.transactions).insert(
-                Transaction.fromJson(t).toCompanion(false),
+                Transaction.fromJson(t, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -332,7 +353,7 @@ class BackupService {
         final transfers = (data['transfers'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final tr in transfers) {
           await _db.into(_db.transfers).insert(
-                Transfer.fromJson(tr).toCompanion(false),
+                Transfer.fromJson(tr, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -340,7 +361,7 @@ class BackupService {
         final purchases = (data['planned_purchases'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final pur in purchases) {
           await _db.into(_db.plannedPurchases).insert(
-                PlannedPurchase.fromJson(pur).toCompanion(false),
+                PlannedPurchase.fromJson(pur, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -348,7 +369,7 @@ class BackupService {
         final budgets = (data['budgets'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final b in budgets) {
           await _db.into(_db.budgets).insert(
-                Budget.fromJson(b).toCompanion(false),
+                Budget.fromJson(b, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -356,7 +377,7 @@ class BackupService {
         final recurring = (data['recurring_transactions'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final r in recurring) {
           await _db.into(_db.recurringTransactions).insert(
-                RecurringTransaction.fromJson(r).toCompanion(false),
+                RecurringTransaction.fromJson(r, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -364,7 +385,7 @@ class BackupService {
         final occurrences = (data['recurring_occurrences'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final o in occurrences) {
           await _db.into(_db.recurringOccurrences).insert(
-                RecurringOccurrence.fromJson(o).toCompanion(false),
+                RecurringOccurrence.fromJson(o, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -372,7 +393,7 @@ class BackupService {
         final debts = (data['debts'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final d in debts) {
           await _db.into(_db.debts).insert(
-                Debt.fromJson(d).toCompanion(false),
+                Debt.fromJson(d, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -380,7 +401,7 @@ class BackupService {
         final splits = (data['split_transactions'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final sp in splits) {
           await _db.into(_db.splitTransactions).insert(
-                SplitTransaction.fromJson(sp).toCompanion(false),
+                SplitTransaction.fromJson(sp, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -388,7 +409,7 @@ class BackupService {
         final virtualSplits = (data['virtual_splits'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final vs in virtualSplits) {
           await _db.into(_db.virtualSplits).insert(
-                VirtualSplit.fromJson(vs).toCompanion(false),
+                VirtualSplit.fromJson(vs, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -396,7 +417,7 @@ class BackupService {
         final virtualSplitItems = (data['virtual_split_items'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final vsi in virtualSplitItems) {
           await _db.into(_db.virtualSplitItems).insert(
-                VirtualSplitItem.fromJson(vsi).toCompanion(false),
+                VirtualSplitItem.fromJson(vsi, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -404,7 +425,7 @@ class BackupService {
         final allocations = (data['financial_allocations'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final a in allocations) {
           await _db.into(_db.financialAllocations).insert(
-                FinancialAllocation.fromJson(a).toCompanion(false),
+                FinancialAllocation.fromJson(a, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -412,7 +433,7 @@ class BackupService {
         final expectedIncomes = (data['expected_incomes'] as List? ?? []).cast<Map<String, dynamic>>();
         for (final ei in expectedIncomes) {
           await _db.into(_db.expectedIncomes).insert(
-                ExpectedIncome.fromJson(ei).toCompanion(false),
+                ExpectedIncome.fromJson(ei, serializer: _serializer).toCompanion(false),
                 mode: InsertMode.insertOrReplace,
               );
         }
@@ -424,40 +445,29 @@ class BackupService {
     }
   }
 
-  // ─── Online / Supabase Cloud Backup Layer ───────────────────
+  // ─── Online / Supabase Cloud Backup Layer Settings ──────────
   Future<bool> isOnlineBackupEnabled() async {
-    final val = await _secureStorage.read(key: _keyOnlineBackupEnabled);
-    return val == 'true';
+    try {
+      final val = await _secureStorage.read(key: _keyOnlineBackupEnabled);
+      return val == 'true';
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> setOnlineBackupEnabled(bool enabled) async {
-    await _secureStorage.write(key: _keyOnlineBackupEnabled, value: enabled ? 'true' : 'false');
+    try {
+      await _secureStorage.write(key: _keyOnlineBackupEnabled, value: enabled ? 'true' : 'false');
+    } catch (_) {}
   }
 
   Future<DateTime?> getLastBackupTimestamp() async {
-    final str = await _secureStorage.read(key: _keyLastBackupTimestamp);
-    if (str == null) return null;
-    return DateTime.tryParse(str);
-  }
-
-  Future<Result<void>> syncToCloud() async {
-    final isEnabled = await isOnlineBackupEnabled();
-    if (!isEnabled) {
-      return const Failure(BackupFailure('Online backup is currently disabled in settings.'));
-    }
-
     try {
-      // Export snapshot securely
-      final exportRes = await exportBackup();
-      if (exportRes.isFailure) return Failure(exportRes.failure);
-
-      // Secure layer: update timestamp upon verified payload readiness
-      final now = DateTime.now();
-      await _secureStorage.write(key: _keyLastBackupTimestamp, value: now.toIso8601String());
-
-      return const Success(null);
-    } catch (e) {
-      return Failure(BackupFailure('Cloud backup failed: ${e.toString()}'));
+      final str = await _secureStorage.read(key: _keyLastBackupTimestamp);
+      if (str == null) return null;
+      return DateTime.tryParse(str);
+    } catch (_) {
+      return null;
     }
   }
 }

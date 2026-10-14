@@ -8,6 +8,7 @@ import 'package:follow_my_life/app/theme/app_theme_presets.dart';
 import 'package:follow_my_life/core/database/app_database.dart';
 import 'package:follow_my_life/core/security/security_service.dart';
 import 'package:follow_my_life/core/storage/backup_service.dart';
+import 'package:follow_my_life/core/storage/supabase_backup_service.dart';
 
 /// Single database instance for the entire app.
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -24,6 +25,12 @@ final securityServiceProvider = ChangeNotifierProvider<SecurityService>((ref) {
 /// Database backup and restore service provider.
 final backupServiceProvider = Provider<BackupService>((ref) {
   return BackupService(ref.watch(databaseProvider));
+});
+
+/// Supabase cloud backup and recovery service provider.
+final supabaseBackupServiceProvider = Provider<SupabaseBackupService>((ref) {
+  final backupService = ref.watch(backupServiceProvider);
+  return SupabaseBackupService(backupService);
 });
 
 /// Initial value providers (can be overridden before runApp)
