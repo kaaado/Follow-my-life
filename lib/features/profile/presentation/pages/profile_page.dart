@@ -215,23 +215,26 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
       ),
-      child: ListTile(
-        leading: Icon(icon, color: color ?? (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary)),
-        title: Text(
-          title,
-          style: AppTypography.bodyLarge(color: color ?? (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary)),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          leading: Icon(icon, color: color ?? (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary)),
+          title: Text(
+            title,
+            style: AppTypography.bodyLarge(color: color ?? (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary)),
+          ),
+          trailing: trailing != null
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(trailing, style: AppTypography.bodyMedium(color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
+                    const SizedBox(width: AppSpacing.xs),
+                    Icon(LucideIcons.chevronRight, size: 16, color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                  ],
+                )
+              : Icon(LucideIcons.chevronRight, size: 16, color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+          onTap: onTap ?? () {},
         ),
-        trailing: trailing != null
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(trailing, style: AppTypography.bodyMedium(color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
-                  const SizedBox(width: AppSpacing.xs),
-                  Icon(LucideIcons.chevronRight, size: 16, color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
-                ],
-              )
-            : Icon(LucideIcons.chevronRight, size: 16, color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
-        onTap: onTap ?? () {},
       ),
     );
   }
@@ -245,24 +248,26 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
       ),
-      child: SwitchListTile(
-        secondary: Icon(
-          LucideIcons.fingerprint,
-          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-        ),
-        title: Text(
-          context.tr('biometrics'),
-          style: AppTypography.bodyLarge(
+      child: Material(
+        color: Colors.transparent,
+        child: SwitchListTile(
+          secondary: Icon(
+            LucideIcons.fingerprint,
             color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
           ),
-        ),
-        subtitle: Text(
-          context.tr('enable_biometrics'),
-          style: AppTypography.labelSmall(
-            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          title: Text(
+            context.tr('biometrics'),
+            style: AppTypography.bodyLarge(
+              color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+            ),
           ),
-        ),
-        value: security.isBiometricsEnabled,
+          subtitle: Text(
+            context.tr('enable_biometrics'),
+            style: AppTypography.labelSmall(
+              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            ),
+          ),
+          value: security.isBiometricsEnabled,
         onChanged: (val) async {
           if (val) {
             final reason = context.tr('biometric_auth_reason');
@@ -297,8 +302,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           }
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showEditNameDialog(BuildContext context, WidgetRef ref, String currentName) {
     final controller = TextEditingController(text: currentName);

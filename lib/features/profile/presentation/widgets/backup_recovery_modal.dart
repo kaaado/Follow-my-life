@@ -175,26 +175,29 @@ class _BackupRecoveryModalState extends ConsumerState<BackupRecoveryModal> {
                             borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                             border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                           ),
-                          child: SwitchListTile(
-                            title: Text(
-                              context.tr('online_backup'),
-                              style: AppTypography.bodyMedium(
-                                color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                              ).copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            subtitle: Text(
-                              isEnabled
-                                  ? context.tr('online_backup_enabled')
-                                  : context.tr('online_backup_disabled'),
-                              style: AppTypography.bodySmall(
-                                color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: SwitchListTile(
+                              title: Text(
+                                context.tr('online_backup'),
+                                style: AppTypography.bodyMedium(
+                                  color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                                ).copyWith(fontWeight: FontWeight.w600),
                               ),
+                              subtitle: Text(
+                                isEnabled
+                                    ? context.tr('online_backup_enabled')
+                                    : context.tr('online_backup_disabled'),
+                                style: AppTypography.bodySmall(
+                                  color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                                ),
+                              ),
+                              value: isEnabled,
+                              onChanged: (val) async {
+                                await backupService.setOnlineBackupEnabled(val);
+                                setState(() {});
+                              },
                             ),
-                            value: isEnabled,
-                            onChanged: (val) async {
-                              await backupService.setOnlineBackupEnabled(val);
-                              setState(() {});
-                            },
                           ),
                         );
                       },

@@ -15,10 +15,14 @@ CREATE TABLE IF NOT EXISTS public.user_backups (
     schema_version INTEGER NOT NULL DEFAULT 5,
     record_counts JSONB,
     backup_data JSONB NOT NULL,
+    raw_payload TEXT,
     metadata JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Ensure raw_payload column exists if table was previously created
+ALTER TABLE public.user_backups ADD COLUMN IF NOT EXISTS raw_payload TEXT;
 
 -- 2. Indexes for fast lookup
 CREATE INDEX IF NOT EXISTS idx_user_backups_identifier ON public.user_backups (identifier);

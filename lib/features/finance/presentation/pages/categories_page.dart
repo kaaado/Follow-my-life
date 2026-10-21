@@ -76,7 +76,9 @@ class CategoriesPage extends ConsumerWidget {
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
       ),
-      child: ListTile(
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
         leading: Container(
           width: 40,
           height: 40,
@@ -127,6 +129,7 @@ class CategoriesPage extends ConsumerWidget {
           ],
         ),
       ),
+    ),
     );
   }
 

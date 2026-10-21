@@ -561,45 +561,48 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ],
                     ),
                   ),
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: actionColor.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: actionColor.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(actionIcon, color: actionColor, size: 20),
                       ),
-                      child: Icon(actionIcon, color: actionColor, size: 20),
+                      title: Text(
+                        title,
+                        style: AppTypography.bodyMedium(
+                          color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                        ).copyWith(fontWeight: FontWeight.bold),
+                      ),
+                  subtitle: Text(
+                    description,
+                    style: AppTypography.bodySmall(
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
                     ),
-                    title: Text(
-                      title,
-                      style: AppTypography.bodyMedium(
-                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                      ).copyWith(fontWeight: FontWeight.bold),
-                    ),
-                subtitle: Text(
-                  description,
-                  style: AppTypography.bodySmall(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: ElevatedButton(
-                  onPressed: () => context.push(topAction.routeName),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: actionColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  trailing: ElevatedButton(
+                    onPressed: () => context.push(topAction.routeName),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: actionColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    context.tr('view'),
-                    style: AppTypography.labelSmall(color: Colors.white)
-                        .copyWith(fontWeight: FontWeight.bold),
+                    child: Text(
+                      context.tr('view'),
+                      style: AppTypography.labelSmall(color: Colors.white)
+                          .copyWith(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ),

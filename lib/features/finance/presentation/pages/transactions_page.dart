@@ -334,7 +334,9 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                           borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                           border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                         ),
-                        child: ListTile(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: ListTile(
                           onTap: () => context.push('/transaction/${txn.id}'),
                           contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                           leading: Container(
@@ -418,6 +420,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                           ),
                         ),
                       ),
+                    ),
                     );
                   },
                 );

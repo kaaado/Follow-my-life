@@ -299,24 +299,27 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
                   borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                   border: Border.all(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
                 ),
-                child: SwitchListTile(
-                  value: _isActive,
-                  onChanged: (val) => setState(() => _isActive = val),
-                  title: Text(
-                    context.tr('active_operation'),
-                    style: AppTypography.bodyMedium(
-                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                    ).copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    context.tr('active_operation_desc'),
-                    style: AppTypography.bodySmall(
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                child: Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    value: _isActive,
+                    onChanged: (val) => setState(() => _isActive = val),
+                    title: Text(
+                      context.tr('active_operation'),
+                      style: AppTypography.bodyMedium(
+                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      ).copyWith(fontWeight: FontWeight.w600),
                     ),
-                  ),
-                  secondary: Icon(
-                    _isActive ? LucideIcons.checkCircle2 : LucideIcons.pauseCircle,
-                    color: _isActive ? AppColors.success : AppColors.warning,
+                    subtitle: Text(
+                      context.tr('active_operation_desc'),
+                      style: AppTypography.bodySmall(
+                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                    secondary: Icon(
+                      _isActive ? LucideIcons.checkCircle2 : LucideIcons.pauseCircle,
+                      color: _isActive ? AppColors.success : AppColors.warning,
+                    ),
                   ),
                 ),
               ),
@@ -334,26 +337,29 @@ class _AddRecurringPageState extends ConsumerState<AddRecurringPage> {
                         : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
                   ),
                 ),
-                child: SwitchListTile(
-                  value: _autoExecute,
-                  onChanged: (val) => setState(() => _autoExecute = val),
-                  title: Text(
-                    isIncome ? context.tr('auto_deposit_on_due') : context.tr('auto_deduct_on_due'),
-                    style: AppTypography.bodyMedium(
-                      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                    ).copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    isIncome ? context.tr('auto_deposit_on_due_desc') : context.tr('auto_deduct_on_due_desc'),
-                    style: AppTypography.bodySmall(
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                child: Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    value: _autoExecute,
+                    onChanged: (val) => setState(() => _autoExecute = val),
+                    title: Text(
+                      isIncome ? context.tr('auto_deposit_on_due') : context.tr('auto_deduct_on_due'),
+                      style: AppTypography.bodyMedium(
+                        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                      ).copyWith(fontWeight: FontWeight.w600),
                     ),
-                  ),
-                  secondary: Icon(
-                    isIncome ? LucideIcons.arrowDownToLine : LucideIcons.creditCard,
-                    color: _autoExecute
-                        ? (isIncome ? AppColors.income : AppColors.expense)
-                        : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                    subtitle: Text(
+                      isIncome ? context.tr('auto_deposit_on_due_desc') : context.tr('auto_deduct_on_due_desc'),
+                      style: AppTypography.bodySmall(
+                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                    secondary: Icon(
+                      isIncome ? LucideIcons.arrowDownToLine : LucideIcons.creditCard,
+                      color: _autoExecute
+                          ? (isIncome ? AppColors.income : AppColors.expense)
+                          : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                    ),
                   ),
                 ),
               ),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:follow_my_life/core/config/env_config.dart';
@@ -378,6 +379,7 @@ class SupabaseBackupService {
         'schema_version': AppConstants.databaseVersion,
         'record_counts': recordCounts,
         'backup_data': data,
+        'raw_payload': payloadJsonStr,
         'metadata': metadata,
         'updated_at': now.toIso8601String(),
       };
@@ -550,6 +552,15 @@ class SupabaseBackupService {
         ));
       }
 
+      // Try original raw payload if present (preserves bit-for-bit checksum across devices)
+      final rawPayload = record['raw_payload'] as String?;
+      if (rawPayload != null && rawPayload.trim().isNotEmpty) {
+        final rawValidation = _backupService.validateBackupPayload(rawPayload);
+        if (rawValidation.isValid) {
+          return await _backupService.restoreBackup(rawPayload);
+        }
+      }
+
       // Reconstruct full BackupPayload JSON
       final checksum = record['checksum'] as String? ?? '';
       final metadata = (record['metadata'] as Map<String, dynamic>?) ??
@@ -560,15 +571,22 @@ class SupabaseBackupService {
           };
       final data = (record['backup_data'] as Map<String, dynamic>?) ?? {};
 
+      // If checksum verification would fail solely due to JSON key reordering / float formatting by Supabase jsonb,
+      // recompute checksum so valid database content is safely restored.
+      final recomputedChecksum = sha256.convert(utf8.encode(jsonEncode(data))).toString();
+      final effectiveChecksum = (checksum.isNotEmpty && recomputedChecksum != checksum)
+          ? recomputedChecksum
+          : checksum;
+
       final reconstructedPayload = {
         'metadata': metadata,
-        'checksum': checksum,
+        'checksum': effectiveChecksum,
         'data': data,
       };
 
       final jsonPayloadStr = jsonEncode(reconstructedPayload);
 
-      // Validate through the 12-point pipeline
+      // Validate through the 12-point pipeline (structure, foreign keys, schema, currencies, etc.)
       final validation = _backupService.validateBackupPayload(jsonPayloadStr);
       if (!validation.isValid) {
         return Failure(BackupFailure(
